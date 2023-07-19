@@ -1,0 +1,271 @@
+
+
+    # def populate_dimension_tree(self, tree_widget, dimension_id):
+    #     # Fetch objectives and criteria for the given dimension from the database
+    #     objectives = self.fetch_objectives(dimension_id)
+    #     criteria = self.fetch_criteria(dimension_id)
+
+    #     # Clear the tree widget
+    #     tree_widget.clear()
+
+    #     # Populate the tree widget with objectives and criteria
+    #     for objective in objectives:
+    #         objective_item = QTreeWidgetItem([f"{objective[1]}- {objective[2]}"])
+    #         objective_item.setData(0, Qt.UserRole, objective[0])  # Store the ObjectiveID as data
+    #         tree_widget.addTopLevelItem(objective_item)
+
+    #         for criterion in criteria:
+    #             if criterion[0] == objective[0]:  # Check if the Criterion belongs to the Objective
+    #                 criterion_item = QTreeWidgetItem([f"{objective[1]}.{criterion[2]} - {criterion[3]}"])
+    #                 criterion_item.setData(0, Qt.UserRole, criterion[1])  # Store the CriterionID as data
+    #                 objective_item.addChild(criterion_item)
+
+    # def fetch_objectives(self, dimension_id):
+    #     # Implement the logic to fetch objectives for the given dimension from the database
+    #     query = "SELECT ObjectiveID, ObjectiveSubID, ObjectiveName FROM Objectives WHERE DimensionID = ?"
+    #     self.cursor.execute(query, (dimension_id,))
+    #     objectives = self.cursor.fetchall()
+    #     return objectives
+
+    # def fetch_criteria(self, dimension_id):
+    #     # Implement the logic to fetch criteria for the given dimension from the database
+    #     query = """
+    #         SELECT Objectives.ObjectiveID, Criteria.CriteriaID, Criteria.CriteriaSubID, Criteria.CriteriaName
+    #         FROM Objectives
+    #         JOIN Criteria ON Objectives.ObjectiveID = Criteria.ObjectiveID
+    #         WHERE Objectives.DimensionID = ?
+    #     """
+    #     self.cursor.execute(query, (dimension_id,))
+    #     criteria = self.cursor.fetchall()
+    #     return criteria
+
+    # def closeEvent(self, event):
+    #     # Close the database connection when the application is closed
+    #     self.conn.close()
+    
+
+    # def populate_metric_blocks(self, criterion):
+    #     criterion_id = criterion["id"]
+    #     metrics = criterion["metrics"]
+
+    #     for metric in metrics:
+    #         metric_id = metric["id"]
+    #         metric_name = metric["name"]
+    #         metric_question = metric["question"]
+    #         answer_options = metric["answer_options"]
+
+    #         metric_block = self.create_metric_block(criterion_id, metric_id, metric_name, metric_question, answer_options)
+
+    #         # Add the metric block to the stacked widget
+    #         self.ui.Body_widget.addWidget(metric_block)
+
+    #     # Show the first metric block
+    #     self.ui.Body_widget.setCurrentIndex(0)
+
+    # def fetch_all_criteria(self):
+    #     # Implement the logic to fetch all criteria from the database
+    #     query = "SELECT CriteriaID, CriteriaName FROM Criteria"
+    #     self.cursor.execute(query)
+    #     criteria = self.cursor.fetchall()
+    #     return criteria
+
+    # def create_metric_block(self, criterion_id, metric_id, metric_name, metric_question, answer_options):
+    #     # Create a new instance of your metric block widget (e.g., QWidget, QDialog, etc.)
+    #     metric_block = QWidget()
+
+    #     # Create labels for displaying metric information
+    #     metric_id_label = QLabel(f"Metric ID: {metric_id}")
+    #     metric_name_label = QLabel(f"Metric Name: {metric_name}")
+    #     metric_question_label = QLabel(f"Metric Question: {metric_question}")
+
+    #     # Create appropriate widgets for answer options based on their type
+    #     answer_widgets = []
+    #     for option in answer_options:
+    #         option_type = option["type"]
+    #         option_label = option["label"]
+
+    #         if option_type == "single_choice":
+    #             radio_button = QRadioButton(option_label)
+    #             answer_widgets.append(radio_button)
+    #         elif option_type == "multiple_choice":
+    #             check_box = QCheckBox(option_label)
+    #             answer_widgets.append(check_box)
+    #         elif option_type == "open":
+    #             line_edit = QLineEdit()
+    #             answer_widgets.append(line_edit)
+
+    #     # Create a layout for the metric block widget
+    #     layout = QVBoxLayout()
+    #     layout.addWidget(metric_id_label)
+    #     layout.addWidget(metric_name_label)
+    #     layout.addWidget(metric_question_label)
+    #     layout.addStretch(1)
+
+    #     for widget in answer_widgets:
+    #         layout.addWidget(widget)
+
+    #     metric_block.setLayout(layout)
+
+    #     # Add the metric block widget to the stacked widget
+    #     self.ui.Body_widget.addWidget(metric_block)
+
+    #     return metric_block
+    
+    
+    
+    # def handle_criterion_selection(self, dimension_id):
+    #     tree_widget = self.sender()  # Get the sender tree widget
+    #     selected_items = tree_widget.selectedItems()
+
+    #     if len(selected_items) > 0:
+    #         selected_item = selected_items[0]
+    #         criterion_id = selected_item.data(0, Qt.UserRole)
+
+    #         # Fetch the criterion details from the database
+    #         criterion = self.fetch_criterion_details(criterion_id)
+
+    #         # Populate the metric blocks in the Body_widget stacked widget
+    #         self.populate_metric_blocks(criterion)
+            
+
+    # def get_metric_block_index(self, criterion_id):
+    #     # Iterate over the metric blocks in the Body_widget stacked widget
+    #     for index in range(self.ui.Body_widget.count()):
+    #         widget = self.ui.Body_widget.widget(index)
+
+    #         # Check if the widget's criterion ID matches the given criterion ID
+    #         if widget and widget.property("criterion_id") == criterion_id:
+    #             return index
+
+    #     return None
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # def handle_criterion_selection(self, dimension_id):
+    #     selected_tree = self.ui.Functional_list if dimension_id == 1 else self.ui.Physical_list
+    #     selected_items = selected_tree.selectedItems()
+
+    #     # Rest of the code
+
+    #     # Fetch the metrics from the database based on the selected criterion
+    #     criterion_id = selected_items[0].data(0, Qt.UserRole)
+    #     self.cursor.execute(
+    #         "SELECT MetricID, MetricName, MetricQuestion, Answer_Type FROM Metrics WHERE CriteriaID=?",
+    #         (criterion_id,)
+    #     )
+    #     metrics = self.cursor.fetchall()
+
+    #     # Remove all existing widgets from the stacked widget
+    #     while self.ui.Body_widget.count() > 0:
+    #         widget = self.ui.Body_widget.widget(0)
+    #         self.ui.Body_widget.removeWidget(widget)
+
+    #     # Create a layout for the metric blocks
+    #     metric_layout = QVBoxLayout()
+
+    #     # Populate the layout with metric blocks
+    #     for metric in metrics:
+    #         metric_id = metric[0]
+    #         metric_name = metric[1]
+    #         metric_question = metric[2]
+    #         answer_type = metric[3]
+
+    #         metric_widget = QWidget()
+    #         metric_widget_layout = QVBoxLayout()
+
+    #         metric_widget_layout.addWidget(QLabel(f"Metric ID: {metric_id}"))
+    #         metric_widget_layout.addWidget(QLabel(f"Metric Name: {metric_name}"))
+    #         metric_widget_layout.addWidget(QLabel(f"Metric Question: {metric_question}"))
+
+    #         if answer_type == "Single choice" or answer_type == "Multiple choice":
+    #             # Fetch the answer options from the database based on the metric ID
+    #             self.cursor.execute(
+    #                 "SELECT Opt1, Opt2, Opt3, Opt4, Opt5, Opt6, Opt7, Opt8, Opt9, Opt10 FROM MetricsOptions WHERE MetricID=?", (metric_id,)
+    #             )
+    #             options = self.cursor.fetchall()
+
+    #             options_label = QLabel("Answer Options:")
+    #             metric_widget_layout.addWidget(options_label)
+
+    #             if answer_type == "Single choice":
+    #                 radio_group = QButtonGroup()
+
+    #                 # Add the answer options as radio buttons to the layout
+    #                 for option in options[0]:
+    #                     if option != '':
+    #                         option_radio = QRadioButton(option)
+    #                         metric_widget_layout.addWidget(option_radio)
+    #                         radio_group.addButton(option_radio)
+
+    #             elif answer_type == "Multiple choice":
+    #                 # Add the answer options as checkboxes to the layout
+    #                 for option in options:
+    #                     if option != '':
+    #                         option_checkbox = QCheckBox(option[0])
+    #                         metric_widget_layout.addWidget(option_checkbox)
+
+    #         elif answer_type == "Open Answer":
+    #             # Add a text window for user input comments
+    #             comment_label = QLabel("Comments:")
+    #             comment_textbox = QTextEdit()
+    #             metric_widget_layout.addWidget(comment_label)
+    #             metric_widget_layout.addWidget(comment_textbox)
+
+    #         # Add a text window for user input comments
+    #         comment_label = QLabel("Comments:")
+    #         comment_textbox = QTextEdit()
+    #         metric_widget_layout.addWidget(comment_label)
+    #         metric_widget_layout.addWidget(comment_textbox)
+
+    #         metric_widget.setLayout(metric_widget_layout)
+
+    #         # Add the metric widget to the metric layout
+    #         metric_layout.addWidget(metric_widget)
+
+    #     # Create a container widget for the metric layout
+    #     metric_container = QWidget()
+    #     metric_container.setLayout(metric_layout)
+
+    #     # Add the metric container to the stacked widget
+    #     self.ui.Body_widget.addWidget(metric_container)
+
+    #     # Show the stacked widget for the selected criterion
+    #     self.ui.Body_widget.setCurrentIndex(0)  # Assuming the first metric block is shown initially
+
+
+class CustomScrollArea(QScrollArea):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        content_height = self.widget().sizeHint().height()
+        scroll_height = self.viewport().height()
+        if content_height < scroll_height:
+            spacer_height = scroll_height - content_height
+            spacer_item = QSpacerItem(20, spacer_height, QSizePolicy.Minimum, QSizePolicy.Expanding)
+            layout = self.widget().layout()
+            layout.addItem(spacer_item)
+        else:
+            layout = self.widget().layout()
+            spacer_item = layout.itemAt(layout.count() - 1)
+            if spacer_item and isinstance(spacer_item, QSpacerItem):
+                layout.removeItem(spacer_item)
