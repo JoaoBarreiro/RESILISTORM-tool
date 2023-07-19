@@ -40,7 +40,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="resources.qrc">
-    <normaloff>:/icon/icons/REFUSS LOGO.ico</normaloff>:/icon/icons/REFUSS LOGO.ico</iconset>
+    <normaloff>:/icon/icons/rain-64.ico</normaloff>:/icon/icons/rain-64.ico</iconset>
   </property>
   <property name="styleSheet">
    <string notr="true"/>
@@ -3924,7 +3924,7 @@ QToolBox::tab::selected {
            <number>5</number>
           </property>
           <item row="0" column="0">
-           <layout class="QGridLayout" name="Dashboard_Layout" rowstretch="1,1" columnstretch="0,1,1,1">
+           <layout class="QGridLayout" name="Dashboard_Layout" rowstretch="1,1" columnstretch="1,1,1,1">
             <property name="sizeConstraint">
              <enum>QLayout::SetFixedSize</enum>
             </property>

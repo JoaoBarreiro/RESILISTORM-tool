@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="icon">
     <file>icons/left_arrow.png</file>
+    <file>icons/REFUSS LOGO.ico</file>
     <file>icons/right_arrow.png</file>
     <file>icons/manhole_cover-48_44623.png</file>
     <file>icons/menu.ico</file>

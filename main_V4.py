@@ -123,7 +123,7 @@ class WelcomeWindow(QDialog):
         super().__init__()
         self.ui = Ui_WelcomeWindow()
         self.ui.setupUi(self)   
-        self.setWindowTitle("Welcome!")
+        self.setWindowTitle("REFUSS Tool")
         
         self.ui.NewButton.clicked.connect(self.newAnalysis)
         self.ui.LoadButton.clicked.connect(self.loadAnalysis)
@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.setWindowTitle("REFUSS - V0")
+        self.setWindowTitle("REFUSS Tool - V0")
         
         #Set inital MainWindowPage
         self.ui.MenuWidget.setHidden(True)
@@ -1165,32 +1165,7 @@ def updateQListView(ListView = QListView, Model = QStandardItemModel, Data = lis
                 item.setCheckable(True)
                 item.setCheckState(Qt.Unchecked) 
                 Model.appendRow(item)
-             
-    
-    
-    # # Check if the model is empty
-    # if Model.rowCount() == 0:
-    #     # Populate the model with data 
-    #     for item in Data:
-    #         if item != Exclude:
-    #             item = QStandardItem(item)
-    #             item.setCheckable(True)
-    #             Model.appendRow(item)
-    # else:
-    #     # Add missing data to the model, excluding the exclude value
-    #     for item in Data:
-    #         if item != Exclude and not Model.findItems(item):
-    #             item = QStandardItem(item)
-    #             item.setCheckable(True)
-    #             Model.appendRow(item)
 
-    #     # Remove the excluded value if it exists in the model
-    #     items = Model.findItems(Exclude)
-    #     if items:
-    #         for item in items:
-    #             row_index = Model.indexFromItem(item).row()
-    #             Model.removeRow(row_index)
-    
     ListView.setModel(Model)    
     
     ListView.show()

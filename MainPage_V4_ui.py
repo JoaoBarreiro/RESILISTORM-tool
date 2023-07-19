@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'MainPage_V4ddKLQf.ui'
+## Form generated from reading UI file 'MainPage_V4JosGzH.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -40,7 +40,7 @@ class Ui_MainWindow(object):
         MainWindow.setMaximumSize(QSize(16777215, 16777215))
         MainWindow.setAcceptDrops(False)
         icon = QIcon()
-        icon.addFile(u":/icon/icons/rain-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        icon.addFile(u":/icon/icons/REFUSS LOGO.ico", QSize(), QIcon.Normal, QIcon.Off)
         MainWindow.setWindowIcon(icon)
         MainWindow.setStyleSheet(u"")
         MainWindow.setIconSize(QSize(25, 25))
@@ -497,7 +497,9 @@ class Ui_MainWindow(object):
 "QPushButton:checked {\n"
 "    background-color: #FFFA9884;\n"
 "}")
-        self.performance_btn.setIcon(icon)
+        icon12 = QIcon()
+        icon12.addFile(u":/icon/icons/rain-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        self.performance_btn.setIcon(icon12)
         self.performance_btn.setIconSize(QSize(25, 25))
         self.performance_btn.setCheckable(True)
         self.performance_btn.setAutoExclusive(True)
@@ -525,9 +527,9 @@ class Ui_MainWindow(object):
 "QPushButton:checked {\n"
 "    background-color: #FF569DAA;\n"
 "}")
-        icon12 = QIcon()
-        icon12.addFile(u":/icon/icons/dashboard-64.ico", QSize(), QIcon.Normal, QIcon.Off)
-        self.dashboard_btn.setIcon(icon12)
+        icon13 = QIcon()
+        icon13.addFile(u":/icon/icons/dashboard-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        self.dashboard_btn.setIcon(icon13)
         self.dashboard_btn.setIconSize(QSize(25, 25))
         self.dashboard_btn.setCheckable(True)
         self.dashboard_btn.setAutoExclusive(True)
@@ -690,7 +692,7 @@ class Ui_MainWindow(object):
 "	background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(250, 152, 132, 255), stop:1 rgba(255, 243, 226, 255));\n"
 "}\n"
 "")
-        self.performance_btn_2.setIcon(icon)
+        self.performance_btn_2.setIcon(icon12)
         self.performance_btn_2.setIconSize(QSize(25, 25))
         self.performance_btn_2.setCheckable(True)
         self.performance_btn_2.setAutoExclusive(True)
@@ -722,7 +724,7 @@ class Ui_MainWindow(object):
 "	background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(86, 157, 170, 255), stop:1 rgba(218, 238, 236, 255));\n"
 "}\n"
 "")
-        self.dashboard_btn_2.setIcon(icon12)
+        self.dashboard_btn_2.setIcon(icon13)
         self.dashboard_btn_2.setIconSize(QSize(25, 25))
         self.dashboard_btn_2.setCheckable(True)
         self.dashboard_btn_2.setAutoExclusive(True)
@@ -1856,9 +1858,9 @@ class Ui_MainWindow(object):
 "	border: 1px solid black;\n"
 "}\n"
 "")
-        icon13 = QIcon()
-        icon13.addFile(u":/icon/icons/settings-12-64.ico", QSize(), QIcon.Normal, QIcon.Off)
-        self.ScenarioSU_btn.setIcon(icon13)
+        icon14 = QIcon()
+        icon14.addFile(u":/icon/icons/settings-12-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        self.ScenarioSU_btn.setIcon(icon14)
 
         self.Performance_LeftWidget.addWidget(self.ScenarioSU_btn, 0, Qt.AlignHCenter|Qt.AlignVCenter)
 
@@ -1875,9 +1877,9 @@ class Ui_MainWindow(object):
 "	border: 1px solid black;\n"
 "}\n"
 "")
-        icon14 = QIcon()
-        icon14.addFile(u":/icon/icons/alert-64.ico", QSize(), QIcon.Normal, QIcon.Off)
-        self.HazardSU_btn.setIcon(icon14)
+        icon15 = QIcon()
+        icon15.addFile(u":/icon/icons/alert-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        self.HazardSU_btn.setIcon(icon15)
 
         self.Performance_LeftWidget.addWidget(self.HazardSU_btn, 0, Qt.AlignHCenter|Qt.AlignVCenter)
 
@@ -2147,7 +2149,6 @@ class Ui_MainWindow(object):
 
         self.Dashboard_Layout.setRowStretch(0, 1)
         self.Dashboard_Layout.setRowStretch(1, 1)
-        self.Dashboard_Layout.setColumnStretch(0, 1)
         self.Dashboard_Layout.setColumnStretch(1, 1)
         self.Dashboard_Layout.setColumnStretch(2, 1)
         self.Dashboard_Layout.setColumnStretch(3, 1)

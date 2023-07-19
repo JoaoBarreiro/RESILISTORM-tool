@@ -234,13 +234,13 @@ class ScatterPlotWidget(QWidget):
 
                 # Set the position of the text slightly above the midpoint
                 text_x = x_midpoint
-                text_y = y_midpoint + 0.1
+                text_y = y_midpoint + 0.05
 
                 # Add the text for the percentage change with "+" sign for positive values
                 if percentage_change > 0:
-                    self.ax.text(text_x, text_y, f'+{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', color=line_color, zorder = 1)
+                    self.ax.text(text_x, text_y, f'+{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', weight='bold', color=line_color, zorder = 1)
                 else:
-                    self.ax.text(text_x, text_y, f'{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', color=line_color, zorder = 1)
+                    self.ax.text(text_x, text_y, f'{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', weight='bold', color=line_color, zorder = 1)
 
             # Set alpha and zorder for scatter points of non-selected scenarios
             for scatter in self.ax.collections:
@@ -248,8 +248,8 @@ class ScatterPlotWidget(QWidget):
                         scatter.set_alpha(0.3)
                         scatter.set_zorder(0)
         else:
-            for scatter in self.ax.collections and scatter.get_label() in self.visible_labels:
-                if scatter.get_label() != legend_label:
+            for scatter in self.ax.collections:
+                if scatter.get_label() != legend_label and scatter.get_label() in self.visible_labels:
                     scatter.set_alpha(0.3)
                     scatter.set_zorder(0)           
                           
@@ -258,7 +258,8 @@ class ScatterPlotWidget(QWidget):
             values = self.df.loc[self.df['ScenarioName'] == legend_label].iloc[0, 1:].astype(float).tolist()
             avg_value = sum(values) / len(values)
             color = self.cmap(self.scenario_name_to_int[legend_label])  # Assign a color to each scenario
-            self.ax.axvline(avg_value, color=color, linestyle='dashed', linewidth = 1, alpha = 0.8)
+            
+            self.ax.axvline(avg_value, color=color, linestyle='dashed', linewidth = 1, alpha = 1, zorder = 0)
             self.ax.text(avg_value, 0.5, f"avg = {avg_value:.2f}", color='black', rotation=90, ha='right', va='bottom', fontsize='small')
             
         # Redraw the canvas to reflect the changes
