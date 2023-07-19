@@ -259,7 +259,7 @@ class ScatterPlotWidget(QWidget):
             avg_value = sum(values) / len(values)
             color = self.cmap(self.scenario_name_to_int[legend_label])  # Assign a color to each scenario
             self.ax.axvline(avg_value, color=color, linestyle='dashed', linewidth = 1, alpha = 0.8)
-            self.ax.text(avg_value, 0.5, f"avg = {avg_value:.2f}", color=color, rotation=90, ha='right', va='bottom', fontsize='small')
+            self.ax.text(avg_value, 0.5, f"avg = {avg_value:.2f}", color='black', rotation=90, ha='right', va='bottom', fontsize='small')
             
         # Redraw the canvas to reflect the changes
         self.ax.figure.canvas.draw()
