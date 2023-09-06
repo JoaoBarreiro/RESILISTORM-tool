@@ -10,11 +10,10 @@ from matplotlib.font_manager import FontProperties
 import time
 import numpy as np
 
-class BarGraphWidget(QWidget):
-    def __init__(self, categories, values, xmax):
+class SingleBarGraphWidget(QWidget):
+    def __init__(self, value, xmax):
         super().__init__()
-        self.categories = categories
-        self.values = values
+        self.value = value
         self.xmax = xmax
         self.initUI()
 
@@ -29,14 +28,18 @@ class BarGraphWidget(QWidget):
         # Set the x-axis tick intervals to 25 and show % sign
         if self.xmax == 100:
             self.ax.set_xticks(range(0, 101, 25))
-            self.ax.set_xticklabels([f"{tick}%" for tick in range(0, 101, 25)])
+            #self.ax.set_xticklabels([f"{tick}%" for tick in range(0, 101, 25)])
         elif self.xmax == 1:
             self.ax.set_xticks(np.arange(0, 1.01, 0.25))
-            self.ax.set_xticklabels([f"{tick}" for tick in np.arange(0, 1.01, 0.25)])
+            #self.ax.set_xticklabels([f"{tick}" for tick in np.arange(0, 1.01, 0.25)])
+        self.ax.set_xticklabels([])
+
+        self.ax.xaxis.set_tick_params(labelsize = "small")
+        self.ax.yaxis.set_tick_params(labelsize = "small")
         
         # Set the number of y values
-        self.ax.set_yticks(range(len(self.categories)))
-        self.ax.set_yticklabels(self.categories, weight ='bold')
+        self.ax.set_yticks(range(1))
+        self.ax.set_yticklabels(())
         
         # Hide the top and bottom axis lines
         self.ax.spines['top'].set_visible(False)
@@ -46,8 +49,8 @@ class BarGraphWidget(QWidget):
         self.ax.grid(False)
         
         # Set the background color with 50% transparency
-        self.fig.patch.set_facecolor('white')
-        self.fig.patch.set_alpha(0.0)     
+        self.fig.patch.set_facecolor("AliceBlue")
+        self.fig.patch.set_alpha(0)     
            
         # Set the facecolor to none
         self.ax.set_facecolor('none')
@@ -59,10 +62,10 @@ class BarGraphWidget(QWidget):
         #colors = [cmap(norm(value)) if value != '' else 'darkgrey' for value in self.values]
         
          # Create a values bar      
-        self.bars = self.ax.barh(self.categories, self.values, height = 0.3, alpha= 1, color = cmap(norm(self.values)), zorder = 1)
+        self.bar = self.ax.barh(1, self.value, alpha= 1, color = cmap(norm(self.value)), zorder = 1)
         
         # Create a light grey bar as a background behind the data bars
-        self.ax.barh(self.categories, self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, height = 0.3, alpha = 0.2, zorder=0)
+        self.ax.barh(1, self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, alpha = 0.2, zorder=0)
 
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
@@ -73,17 +76,18 @@ class BarGraphWidget(QWidget):
         # Set the layout
         layout = QVBoxLayout()
         layout.addWidget(self.canvas)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         self.setLayout(layout)
         
         # Initialize the text element for the value inside the bars
         self.text = None    
 
     def animateBars(self):
-        
         def update(frame):
             progress = frame / self.frames * self.xmax
-            max_value = max(self.values)
-            for bar, w in zip(self.bars, self.values):
+            max_value = max(self.value)
+            for bar, w in zip(self.bar, self.value):
                 width = min(progress , w)
                 bar.set_width(width)
 
@@ -98,46 +102,49 @@ class BarGraphWidget(QWidget):
     
     def on_bar_hover(self, event):
         if event.inaxes == self.ax:
-            for i, bar in enumerate(self.bars):
+            for bar in self.bar:
                 if bar.contains(event)[0]:
-                    # Set the transparency of the hovered bar to 1.0
-                    #bar.set_alpha(1)
                     # Add a contour
                     bar.set_edgecolor('darkblue')
                     bar.set_linewidth(1)
-                    
                     # Get the value of the hovered bar
-                    value = self.values[i] 
+                    value = self.value
                     
                     # Remove the previous text element if it exists
                     if self.text:
                         self.text.remove()
-                   
                     # Add the text for the value inside the bar
-                    if self.xmax == 100:
-                        self.text = self.ax.text(value + 1, i, f"{str(value)}%", va='center')
-                    elif self.xmax == 1:
-                        self.text = self.ax.text(value + 0.01, i, f"{str(value)}", va='center')
                     
+                    normvalue = value / self.xmax
+                    
+                    labelpad = 0.025 * self.xmax
+                    
+                    if self.xmax == 1:
+                        label = f"{(value):.2f}"
+                    elif self.xmax == 100:
+                        label = f"{str(value)}%"
+                    
+                    if normvalue <= 0.1:
+                        self.text = self.ax.text(value + labelpad, 1, label , va='center', ha = "left")
+                    else:
+                        self.text = self.ax.text(value -labelpad, 1, label , va='center', ha = "right")    
                 else:
-                    # Set the transparency of non-hovered bars to 0.5
-                    bar.set_alpha(0.5)
                     bar.set_edgecolor('none')
-                    
-            # Remove the text element if it exists and the mouse is not over any bar
-            if not any(bar.contains(event)[0] for bar in self.bars):
-                for i, bar in enumerate(self.bars):
-                    bar.set_alpha(1)
-                if self.text:
-                    self.text.remove()
-                    self.text = None
-
-            self.canvas.draw()
-            
-            pass
+                     
+                    if self.text:
+                        self.text.remove()
+                        self.text = None
+        else:
+            for bar in self.bar:
+                bar.set_edgecolor('none')
+            if self.text:
+                self.text.remove()
+                self.text = None
+        
+        self.canvas.draw()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    widget = BarGraphWidget(categories = ['1', '2', '3'], values = [0.3, 0.5, 1], xmax = 1)
+    widget = SingleBarGraphWidget(value = 0.12 , xmax = 1)
     widget.show()
     sys.exit(app.exec())

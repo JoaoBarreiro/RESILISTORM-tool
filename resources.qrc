@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="icon">
     <file>icons/left_arrow.png</file>
+    <file>icons/REFUSS LOGO_50.ico</file>
     <file>icons/REFUSS LOGO.ico</file>
     <file>icons/right_arrow.png</file>
     <file>icons/manhole_cover-48_44623.png</file>
@@ -23,5 +24,6 @@
   </qresource>
   <qresource prefix="images">
     <file>images/Panarchy_Flooding.png</file>
+    <file>images/Asset 1.png</file>
   </qresource>
 </RCC>

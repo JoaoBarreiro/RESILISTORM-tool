@@ -11,9 +11,9 @@ from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem, QValidator, QIntValidator
 import sqlite3
 #from MainPage_ui import Ui_MainWindow
-from _Old.MainPage_V2_ui import Ui_MainWindow
-from SetupWindow_ui import Ui_ScenarioSetup
-from WelcomeWindow_ui import Ui_WelcomeWindow
+from MainPage_V3_ui import Ui_MainWindow
+from W_SetupWindow_ui import Ui_ScenarioSetup
+from W_WelcomeWindow_ui import Ui_WelcomeWindow
 from functools import partial
 import atexit
 import resources_rc
