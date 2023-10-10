@@ -1,7 +1,14 @@
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QCheckBox, QStackedWidget, QListView,
-                                QComboBox)
-from PySide6.QtCore import Qt
+                                QComboBox, QTreeWidgetItem, QWidget, QInputDialog, QSpacerItem,
+                                QSizePolicy, QLabel, QMessageBox, QFrame, QFormLayout,QLineEdit,
+                                QPushButton)
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (QStandardItemModel, QStandardItem)
+from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+
+from M_Fonts import MyFont
+
 
 def CleanStackedWidget(QStackedWidget):
     #Remove all existing pages from the stacked widget
@@ -64,6 +71,7 @@ def access_page_by_name(stacked_widget: QStackedWidget, page_name: str):
         if page.property("pageName") == page_name:
             # Set the current page to the found page
             stacked_widget.setCurrentIndex(index)
+            break
             
 
 ############### QList OPERATIONS ###############
@@ -142,3 +150,90 @@ def updateQComboBox(ComboBox: QComboBox, Data: list):
 
     ComboBox.clear()
     ComboBox.addItems(Data)
+
+
+"""
+CLASSES - SPECIAL ELEMENTS
+"""
+class DatabaseItem(QTreeWidgetItem):
+    def __init__(self, db_row_id, column_name, parent=None):
+        super(DatabaseItem, self).__init__(parent)
+        self.db_row_id = db_row_id
+        self.column_name = column_name
+        
+class ExpandableSimpleElement(QWidget):
+    formFieldTextChanged = Signal(str, str)  # Pass two strings: the label and the new text
+    removedElement = Signal(str)
+    changedLabel = Signal(str, str)
+    
+    def __init__(self, label_text = ""):
+        super().__init__()
+        self.expanded = True
+        self.label_text = label_text
+        
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        # Create a frame for the header labels and a simple horizontal line
+        header_frame = QFrame(self)
+        header_layout = QVBoxLayout(header_frame)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+
+        # Create a horizontal layout for the header labels (self.label, self.edit_label, self.expand_label)
+        header_labels_layout = QHBoxLayout()
+
+        # Create a label for the element's text (self.label_text)
+        self.label = QLabel(self.label_text, self)
+        self.label.setFont(MyFont(10, True))
+
+        # Create a horizontal spacer to push self.label to the left
+        label_spacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        # Create a label for the expand/collapse arrow (self.expand_label)
+        self.expand_label = QLabel("▲", self)  # Use ▼ for down arrow and ▲ for up arrow
+        self.expand_label.setAlignment(Qt.AlignCenter)
+        self.expand_label.setCursor(Qt.PointingHandCursor)
+        self.expand_label.mousePressEvent = self.toggle_properties
+
+        # Add the labels to the header_labels_layout
+        header_labels_layout.addWidget(self.label)
+        header_labels_layout.addItem(label_spacer)
+        header_labels_layout.addWidget(self.expand_label)
+
+        header_layout.addLayout(header_labels_layout)
+
+        # Create a simple horizontal line
+        line = QFrame(self)
+        line.setFrameShape(QFrame.HLine)
+        header_layout.addWidget(line)
+
+        self.layout.addWidget(header_frame)
+
+        # Create a widget for the expandable content (e.g., labels and input fields)
+        self.content_widget = QWidget(self)
+        self.content_layout = QFormLayout(self.content_widget)
+
+        self.content_layout.setVerticalSpacing(5)  # Adjust vertical spacing as needed
+        #self.content_widget.hide()
+        
+        header_layout.addWidget(self.content_widget)
+
+        # Create a layout for the delete button and spacer
+        header_button_layout = QHBoxLayout()
+        header_button_layout.addItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+
+        header_layout.addLayout(header_button_layout)
+
+        #self.layout.addWidget(header_frame)
+            
+    def toggle_properties(self, event):
+        self.expanded = not self.expanded
+        self.content_widget.setVisible(self.expanded)
+        if self.expanded:
+            self.expand_label.setText("▲")  # Change to up arrow when expanded
+        else:
+            self.expand_label.setText("▼")  # Change to down arrow when collapsed

@@ -13,14 +13,18 @@ from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QStandardItemModel, QValidator, QIntValidator, QAction
 
 from W_MainPage_V5 import Ui_MainWindow
-from W_SetupWindow_ui import Ui_ScenarioSetup
+from W_SetupWindow_ui import Ui_HazardSetup
 from W_WelcomeWindow import Ui_WelcomeWindow
 from W_HazardB1 import Ui_SettingB1
+from M_PerformanceSetup import Ui_PerformanceSetup
+from W_SetupWindow import Ui_SetupWindow
 
 import M_OperateDatabases
 import M_Operate_GUI_Elements
 import M_PlotGraphs
 import M_ResilienceCalculus
+import M_IndicatorsSelection
+import M_HazardClasses
 from M_Fonts import MyFont
 
 from functools import partial
@@ -245,7 +249,7 @@ class SetupWindow(QMainWindow):
 
     def __init__(self, SetupTable):
         super().__init__()
-        self.ui = Ui_ScenarioSetup()
+        self.ui = Ui_HazardSetup()
         self.ui.setupUi(self)
         
         #Set the headers
@@ -536,7 +540,10 @@ class MainWindow(QMainWindow):
         # Get tables' content from REFUSS_DB
         self.dimensions, self.objectives, self.criteria, self.metrics, self.metric_options = M_OperateDatabases.getREFUSSDatabase(REFUSS_DB)
 
-
+        # Verify answers database
+        M_OperateDatabases.verifyAnswersDatabase(ANSWERS_DB)
+        M_OperateDatabases.setConsequencesTables(REFUSS_DB, ANSWERS_DB)
+        
         """
         Set Tree Widgets
         """
@@ -544,7 +551,7 @@ class MainWindow(QMainWindow):
         self.ui.Functional_list = self.findChild(QTreeWidget, "Functional_list")
         self.ui.Performance_list = self.findChild(QTreeWidget, "Performance_list")
         self.populate_dimension_tree(self.ui.Functional_list, 1)  # Assuming dimension 1 corresponds to Functional_list
-        self.populate_dimension_tree(self.ui.Performance_list, 2)  # Assuming dimension 2 corresponds to Performance_list
+        self.populate_dimension_tree(self.ui.Performance_list, 2)  # Assuming dimension 2 corresponds to Performance_list        
         
         # Romeve small arrow on the left of the tree widget parent item
         self.ui.Functional_list.setRootIsDecorated(False)
@@ -567,42 +574,110 @@ class MainWindow(QMainWindow):
         M_Operate_GUI_Elements.CleanStackedWidget(self.ui.Functional_MainWidget)
         M_Operate_GUI_Elements.CleanStackedWidget(self.ui.Performance_MainWidget)
 
-        # Populate the Functional_MainWidget and Performance_MainWidget metrics from REFUSS_DB
+        # Populate the Functional_MainWidget with objectives and criteria from REFUSS_DB
         self.populate_with_objective_pages()
         self.populate_with_criterion_pages()
         
         """
         Address Status (New or Old)
         """
-        M_OperateDatabases.verifyAnswersDatabase(ANSWERS_DB)
+        
+        
+        # The scenario pages layout will have a widget for all the possible Classes and Indicators
+        # If the Class has a selected indicator the respective Widget of the class is shown,
+            # otherwise it is hidden
+        # If the indicator within a given class is selected, the respective widget is shown,
+            # otherwise it is hidden
+        # When calculating Performance Resilience, only selceted indicators must be considered
+        
+        
+        # Initialize list to save the existing scanerio IDs
+        # Updated when the SETUP window is closed
+        self.scenario_ids = []
+
+        # initialize dictionary containing as keys the IndicatorsClasses from the ConsequencesLibrary
+            # and as values the selected IndicatorsIDs of each class (generaly, classes only allow 1 indicator)
+        # For each IndicatorsID there is a different methodology, widget and table.
+        # Updated when the SETUP window is closed
+        # Verify if you can associate the indicators list in SetupWindow directly
+            # with the database where selcted indicators are saved
+        self.selected_indicators = {}
+        
+        # Initialize dictionary containg as keys the scenarioIDs
+            # and as values a dict containing the IndicatorIDs as keys and
+            # the respective models as value, to be later accessed and easily updated
+        # Created when initializing the GUI and updated a new scenario is created/deleted
+        self.scenario_models = {}
+                
+        # Initialize dictionary containing as keys the ScenarioIDs
+            # and as values a dict containing the IndicatorIDs as keys
+            # and the respective widget,  to be later accessed and allow to hide/show the widgets
+            # according to the selected IndicatorIDs
+            # e.g. {'ScenarioID1': {'IndicatorID1': widget1, 'IndicatorID2': widget2, etc.}}
+        # Created when initializing the GUI and updated when selected_indicators changes 
+            # by showing/hiding the widgets of the selected/deselected indicators
+        self.scenario_widgets = {}
+
         if Status == "New":
             # If new anaylisis, makes sure to delete its existing answers and save over existing database
             M_OperateDatabases.FillNewAnswersDatabase(ANSWERS_DB, self.metrics)
         if Status == "Old":
-            # If old analysis, load available functional answers from ANSWERS_DB into the GUI
-            load_FunctionalAnswers(self.ui.Functional_MainWidget)    
-        
-        """
-        Load Performance Tables with data from the ANSWERS_DB
-        """   
-        # Load ScenariosTables from ANSWERS_DB into the GUI
-        M_Operate_GUI_Elements.updatePerformanceTablesViews(self.PerformanceModels)
-        
-        # Load HazardTables from ANSWERS_DB into the GUI
-        updateHazardTableViews(self.ui.Performance_MainWidget)
+            # Load available functional answers from ANSWERS_DB into the GUI
+            load_FunctionalAnswers(self.ui.Functional_MainWidget)
+            
+            # Get Hazards list from HazardSetup table of ANSWERS_DB
+            #self.selected_consequences = M_OperateDatabases.getUniqueColumnValues(ANSWERS_DB, "HazardSetup", "HazardName")
+            #self.scenario_ids = M_OperateDatabases.getUniqueColumnValues(ANSWERS_DB, "ScenarioSetup", "ScenarioID")
+            
+            # Populate the Performance_MainWidget with scenarios from ANSWERS_DB
+            self.populate_scenario_pages()
+            
+            # Load Performance Tables from ANSWERS_DB into the GUI
+            #M_Operate_GUI_Elements.updatePerformanceTablesViews(self.PerformanceModels)
+            
+            # Load Hazard Tables from ANSWERS_DB into the GUI
+            #updateHazardTableViews(self.ui.Performance_MainWidget)
 
         # Performance Dimension buttons
         self.ui.HazardSU_btn.clicked.connect(partial(self.OpenSetupWindow, "HazardSetup"))
-        self.ui.ScenarioSU_btn.clicked.connect(partial(self.OpenSetupWindow,"ScenarioSetup"))
+        self.ui.ScenarioSU_btn.clicked.connect(self.OpenScenarioSetup)
 
     def OpenSetupWindow(self, SetupTable):
         self.setupwindow = SetupWindow(SetupTable)
         self.setupwindow.windowClosed.connect(self.onSetupWindowClosed)
-        self.setupwindow.setWindowModality(Qt.WindowModal)
-        self.setupwindow.setWindowFlags(self.setupwindow.windowFlags() | Qt.WindowStaysOnTopHint)
+        #self.setupwindow.setWindowModality(Qt.WindowModal)
+        #self.setupwindow.setWindowFlags(self.setupwindow.windowFlags() | Qt.WindowStaysOnTopHint)
         self.setupwindow.show()
-
+    
+    def OpenScenarioSetup(self):
+        self.ScenarioSetupWindow = Ui_PerformanceSetup(REFUSS_DB, ANSWERS_DB)
+        self.ScenarioSetupWindow.setWindowModality(Qt.WindowModal)
+        #self.ScenarioSetupWindow.setWindowFlags(self.ScenarioSetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
+        self.ScenarioSetupWindow.windowClosed.connect(self.onSetupWindowClosed) 
+        self.ScenarioSetupWindow.show()
+        
     def onSetupWindowClosed(self):
+        self.populate_dimension_tree(self.ui.Performance_list, 2)
+                
+        # na função populate_scenario_pages():
+        # criar e adicionar um widget por cada indicator ID com label (IndicatorClass + ShowName)
+        # criar e adicionar um modelo para o indicatorID filtrado com o ScenarioID e associar à respetiva tabela
+        # se o indicador está na lista de indicadores selecionados, mostrar o respetivo widget e adicionar o indicador à lista de indicadores selecionados
+        # se o indicador não está na lista de indicadores selecionados, esconder o respetivo widget
+        
+        #AQUI:              
+        # criar função self.update_scenario_pages()
+            # fazer loop pelas páginas e fazer corresponder o qlabel do nome do cenário ao respetivo id para atualizar o nome
+            #1.  atualizar os nomes das páginas do qstackedwidget self.ui.Performance_MainWidget
+                
+            #2. ler as tabelas ScenarioSetup e HazardSetup
+            #   Tens de criar antes uma lista que tenha os IndicatorID dos indicators selecionados no momento (neste caso os que estarão antes)
+            #   Tens de criar antes um dicionario que contém o ScenarioID como chave e que contem como valor um dicionario que contém como chave o IndicatorID e como valor o respetivo Widget
+                # se um hazard existente foi apagado, esconder o respetivo widget e remover o indicador da lista (a ideia é deixar o modelo e o indicador operacionais, e não perder os dados da tabela)
+                    # ter em atenção para nos plots e cálculos apenas considerar os indicadores selecionados 
+                # se um novo hazard foi selecionado, mostrar o respetivo widget e adicionar o indicador da lista               
+        
+        self.populate_scenario_pages()
         M_Operate_GUI_Elements.updatePerformanceTablesViews(self.PerformanceModels)
         updateHazardTableViews(self.ui.Performance_MainWidget)
 
@@ -618,32 +693,34 @@ class MainWindow(QMainWindow):
             objective_name = objective["ObjectiveName"]
             objective_description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."  # Replace with actual description
 
-            # Create a page widget
-            page = QWidget()
-
-            # Create a layout for the page
-            layout = QVBoxLayout()
-
-            # Add labels to the layout
-            layout.addWidget(QLabel(f"Objective : {objective_id}"))
-            layout.addWidget(QLabel(f"Objective Name: {objective_name}"))
-            layout.addWidget(QLabel(f"Objective Description: {objective_description}"))
-
-            # Add spacer at the bottom
-            vertical_spacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding)
-            layout.addItem(vertical_spacer)
-
-            # Set the layout for the page
-            page.setLayout(layout)
-
-            # Set the property for the page
-            page.setProperty("pageName", objective_id)
-
-            # Add the page to the corresponding main widget based on the first character of objective_id
             if objective_id[0] == '1':
+                # Create a page widget
+                page = QWidget()
+
+                # Create a layout for the page
+                layout = QVBoxLayout()
+
+                # Add labels to the layout
+                layout.addWidget(QLabel(f"Objective : {objective_id}"))
+                layout.addWidget(QLabel(f"Objective Name: {objective_name}"))
+                layout.addWidget(QLabel(f"Objective Description: {objective_description}"))
+
+                # Add spacer at the bottom
+                vertical_spacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding)
+                layout.addItem(vertical_spacer)
+
+                # Set the layout for the page
+                page.setLayout(layout)
+
+                # Set the property for the page
+                page.setProperty("pageName", objective_id)
+
+                # Add the page to the corresponding main widget based on the first character of objective_id
                 self.ui.Functional_MainWidget.addWidget(page)
+                
             elif objective_id[0] == '2':
-                self.ui.Performance_MainWidget.addWidget(page)
+                #self.ui.Performance_MainWidget.addWidget(page)
+                pass
 
     def populate_with_criterion_pages(self):
         """
@@ -651,7 +728,7 @@ class MainWindow(QMainWindow):
         
         """
         
-        #self.PerformanceModels is a list of the 
+        #self.PerformanceModels is a list of the  
         self.PerformanceModels = []
 
         criteria_sorted = self.criteria.sort_values(by = "CriteriaID", ascending = True)
@@ -664,17 +741,92 @@ class MainWindow(QMainWindow):
             #Get the dimension based on the first character of the criterion_id
             if criterion_id.startswith('1'):
                 Dimension = "F"
+    
+                #Generate the criterion label and assign the font and properties of the label
+                Criterion_id_label = f"{Dimension}{criterion_id[2:]}"
+                Criterion_label = QLabel(f"Criterion {Criterion_id_label}: {criterion_name}")
+                Criterion_label.setFont(MyFont(12, True))
+                Criterion_label.setWordWrap(True)  # Enable word wrapping
+                Criterion_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)  # Set the horizontal policy to Expanding
+
+                # Create the criterion main widget
+                page = QWidget()
+
+                #Create a QVBoxLayout for the main widget
+                layout = QVBoxLayout(page)
+                layout.setContentsMargins(0, 0, 0, 0)
+                layout.setSpacing(0)  # Set the spacing to 0 or a smaller value
+
+                #Create a QScrollArea
+                scroll_area = QScrollArea()
+                scroll_area.setWidgetResizable(True)  # Allow the scroll area to resize its widget -> texto não corta
+                scroll_area.setStyleSheet("QScrollArea { border: none; }")
+
+                # Create a QWidget as the content widget for the scroll area
+                scroll_widget = QWidget()
+
+                # Create a QVBoxLayout for the scroll widget
+                scroll_layout = QVBoxLayout(scroll_widget)
+                scroll_layout.setContentsMargins(2, 2, 2, 2)
+                scroll_layout.setSpacing(25)
+
+                # Populate the scroll layout with the metric "normal" blocks
+                criterion_metrics_sorted = criterion_metrics.sort_values(by = "MetricID", ascending = True)
+
+                for index, metric in criterion_metrics_sorted.iterrows():
+                    metric_id = metric["MetricID"]
+                    metric_name = metric["MetricName"]
+                    metric_question = metric["MetricQuestion"]
+                    answer_type = metric["Answer_Type"]
+                    answer_options = self.metric_options[self.metric_options["MetricID"] == metric_id]
+
+                    #add metric block to respective layout
+                    if metric_id[0] == '1':
+                        metric_block = FunctionalMetricBlock(metric_id, metric_name, metric_question, answer_type, answer_options)
+                    elif metric_id[0] == '2':
+                        metric_block, model, table_view = PerformanceMetricBlock(metric_id, metric_name, metric_question)
+                        self.PerformanceModels.append((model, table_view))
+                    scroll_layout.addLayout(metric_block)
+
+                #add spacer at the bottom of the metrics
+                vertical_spacer2 = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding)
+                scroll_layout.addItem(vertical_spacer2)
+
+                # Set the scroll widget as the content widget for the scroll area
+                scroll_area.setWidget(scroll_widget)
+
+                # Add the desired widgets, inluding the scrool area, to the main layout
+                layout.addWidget(Criterion_label)
+                layout.addWidget(scroll_area)
+                layout.setStretch(0,1)
+                layout.setStretch(1,20)
+
+                # Set the property for the page
+                page.setProperty("pageName", criterion_id)
+            
+                self.ui.Functional_MainWidget.addWidget(page)
             else:
                 Dimension = "P"
 
-            #Generate the criterion label and assign the font and properties of the label
-            Criterion_id_label = f"{Dimension}{criterion_id[2:]}"
-            Criterion_label = QLabel(f"Criterion {Criterion_id_label}: {criterion_name}")
-            Criterion_label.setFont(MyFont(12, True))
-            Criterion_label.setWordWrap(True)  # Enable word wrapping
-            Criterion_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)  # Set the horizontal policy to Expanding
-
-            # Create the criterion main widget
+    def populate_scenario_pages(self):
+        
+        formFieldTextChanged = Signal()
+        
+        self.selected_consequences = M_OperateDatabases.getUniqueColumnValues(ANSWERS_DB, "HazardSetup", "HazardName")
+        
+        ScenarioSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioSetup")
+        ScenarioSetup = ScenarioSetup.set_index("ScenarioID")
+        
+        HazardSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "HazardSetup")
+        
+        Scenario_Answer_Elements = {}
+       
+        for scenario_id, scenario in ScenarioSetup.iterrows():
+            self.scenario_widgets[scenario_id] = {}
+            
+            self.scenario_models[scenario_id] = {}
+            
+            # Create the main widget
             page = QWidget()
 
             #Create a QVBoxLayout for the main widget
@@ -694,48 +846,84 @@ class MainWindow(QMainWindow):
             scroll_layout = QVBoxLayout(scroll_widget)
             scroll_layout.setContentsMargins(2, 2, 2, 2)
             scroll_layout.setSpacing(25)
+            
+            # ADD LABEL COM O SCENARIO_NAME
+            scenario_name = scenario["ScenarioName"]
+            scenario_label = QLabel(scenario_name, self)
+            scenario_label.setFont(MyFont(12, True))
+            layout.addWidget(scenario_label)
+            
+            # Add performance contents
+            system_performance = M_Operate_GUI_Elements.ExpandableSimpleElement("System Performance")
+            
+            scroll_layout.addWidget(system_performance)
+            
+            # Add labels and input fields for the form
+            Performance_labels = ["Node surcharge performance resilience:", "Node flooding performance resilience:", "Surface performance resilience:"]
 
-            # Populate the scroll layout with the metric "normal" blocks
-            criterion_metrics_sorted = criterion_metrics.sort_values(by = "MetricID", ascending = True)
+            # for label_text in Performance_labels:
+            #     label = QLabel(label_text, self)
+            #     input_field = QLineEdit(self)
+            #     Scenario_Answer_Elements[scenario_id][label_text] = input_field
+            #     Scenario_Answer_Elements[scenario_id][label_text].textChanged.connect(lambda text, label_text = label_text: formFieldTextChanged.emit(label_text, text))
+            #     system_performance.content_layout.addRow(label, input_field)
 
-            for index, metric in criterion_metrics_sorted.iterrows():
-                metric_id = metric["MetricID"]
-                metric_name = metric["MetricName"]
-                metric_question = metric["MetricQuestion"]
-                answer_type = metric["Answer_Type"]
-                answer_options = self.metric_options[self.metric_options["MetricID"] == metric_id]
+            # Add hazard contents                
+            consequences = M_Operate_GUI_Elements.ExpandableSimpleElement("Consequences in the city")
+            
+            scroll_layout.addWidget(consequences)
+                            
+            ############# adicionar hazards ########
+            
+            # for hazard_name in self.selected_hazards:
+            #     hazard_table = self.create_model(scenario_id, hazard_name, "HazardAnswers", f"HazardName = {hazard_name} AND ScenarioID = {scenario_id}" )
+            #     hazardlabel = QLabel(hazard_name, self)
+            #     hazardlabel.setFont(MyFont(10, True))
+                
+            #     consequences.content_layout.addWidget(hazardlabel)
+            #     consequences.content_layout.addWidget(hazard_table)
+                
+            #     self.scenario_models[scenario_id][hazard_name] = hazard_table
 
-                #add metric block to respective layout
-                if metric_id[0] == '1':
-                    metric_block = FunctionalMetricBlock(metric_id, metric_name, metric_question, answer_type, answer_options)
-                elif metric_id[0] == '2':
-                    metric_block, model, table_view = PerformanceMetricBlock(metric_id, metric_name, metric_question)
-                    self.PerformanceModels.append((model, table_view))
-                scroll_layout.addLayout(metric_block)
-
-            #add spacer at the bottom of the metrics
-            vertical_spacer2 = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding)
-            scroll_layout.addItem(vertical_spacer2)
-
+            scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding))
+            
             # Set the scroll widget as the content widget for the scroll area
             scroll_area.setWidget(scroll_widget)
-
+            
             # Add the desired widgets, inluding the scrool area, to the main layout
-            layout.addWidget(Criterion_label)
             layout.addWidget(scroll_area)
-            layout.setStretch(0,1)
-            layout.setStretch(1,20)
+    
+            page.setProperty("pageName", f"Scenario{scenario_id}")
+            
+            #self.scenario_contents[scenario_id] = [system_performance, consequences]
+            
+            self.ui.Performance_MainWidget.addWidget(page)
+    
+    def create_model(self, scenario_id, model_name, table_name, filter_condition):
+        # Cria uma instância do QSqlTableModel
+        model = QSqlTableModel()
 
-            # Set the property for the page
-            page.setProperty("pageName", criterion_id)
+        # Define a tabela da base de dados que o modelo deve representar
+        model.setTable(table_name)
 
-            # Add the page to the corresponding main widget based on the dimension
-            if Dimension == "F":
-                self.ui.Functional_MainWidget.addWidget(page)
-            elif Dimension == "P":
-                self.ui.Performance_MainWidget.addWidget(page)
+        # Define a estratégia de edição para o modelo (opcional)
+        model.setEditStrategy(QSqlTableModel.OnFieldChange)
 
+        # Aplica um filtro ao modelo para exibir apenas as linhas que atendem à condição
+        model.setFilter(filter_condition)
 
+        # Carrega os dados da tabela com base no filtro
+        model.select()
+
+        # Associa o modelo a um nome específico para acessá-lo posteriormente
+        self.scenario_models[scenario_id][model_name] = model
+
+        # Cria uma QTableView para exibir os dados do modelo
+        view = QTableView()
+        view.setModel(model)
+        
+        return view
+          
     def navigate_to_page(self, item):
         """
         Navigates to the page based on the item selected.
@@ -748,9 +936,9 @@ class MainWindow(QMainWindow):
         """
         item_id = item.data(0, Qt.UserRole)
 
-        if item_id[0] == '1':
+        if item_id.startswith("1"):
             M_Operate_GUI_Elements.access_page_by_name(self.ui.Functional_MainWidget, item_id)
-        elif item_id[0] == '2':
+        elif item_id.startswith("Scenario"):
             M_Operate_GUI_Elements.access_page_by_name(self.ui.Performance_MainWidget, item_id)
 
     def populate_dimension_tree(self, tree_widget: QTreeWidget, dimension_id: int):
@@ -765,21 +953,38 @@ class MainWindow(QMainWindow):
         # Clear the tree widget
         tree_widget.clear()
 
-        # Populate the tree widget with objectives and criteria
-        for _, objective in self.objectives[self.objectives["DimensionID"] == dimension_id].iterrows():
-            # Create an objective item with the objective name and description
-            objective_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']} - {objective['ObjectiveName']}"])
-            objective_ID = objective["ObjectiveID"]
-            objective_item.setData(0, Qt.UserRole, objective_ID)  # Store the ObjectiveID as data
-            objective_item.setFont(0, MyFont(9, True))
-            tree_widget.addTopLevelItem(objective_item)
-            
+        if dimension_id == 1:
+            # Populate the tree widget with objectives and criteria
+            for _, objective in self.objectives[self.objectives["DimensionID"] == dimension_id].iterrows():
+                # Create an objective item with the objective name and description
+                objective_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']} - {objective['ObjectiveName']}"])
+                objective_ID = objective["ObjectiveID"]
+                objective_item.setData(0, Qt.UserRole, objective_ID)  # Store the ObjectiveID as data
+                objective_item.setFont(0, MyFont(9, True))
+                tree_widget.addTopLevelItem(objective_item)
+                
 
-            for _, criterion in self.criteria[self.criteria["ObjectiveID"] == objective_ID].iterrows():
-                # Create a criterion item with the criterion name and description
-                criterion_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']}.{criterion['CriteriaSubID']} - {criterion['CriteriaName']}"])
-                criterion_item.setData(0, Qt.UserRole, criterion['CriteriaID'])  # Store the CriterionID as data
-                objective_item.addChild(criterion_item)
+                for _, criterion in self.criteria[self.criteria["ObjectiveID"] == objective_ID].iterrows():
+                    # Create a criterion item with the criterion name and description
+                    criterion_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']}.{criterion['CriteriaSubID']} - {criterion['CriteriaName']}"])
+                    criterion_item.setData(0, Qt.UserRole, criterion['CriteriaID'])  # Store the CriterionID as data
+                    objective_item.addChild(criterion_item)
+        
+        elif dimension_id == 2:
+            # Populate the tree widget with scenarios            
+            query = QSqlQuery("SELECT ScenarioID, ScenarioName FROM ScenarioSetup ORDER BY ScenarioID", ANSWERS_DB)
+            
+            while query.next():
+                scenario_id = query.value(0)
+                scenario_name = query.value(1)
+                
+                scenario_item = M_Operate_GUI_Elements.DatabaseItem(scenario_id, "ScenarioName")
+                scenario_item.setData(0, Qt.UserRole, f"Scenario{scenario_id}")
+                scenario_item.setText(0, scenario_name)
+                scenario_item.setFont(0, MyFont(9, True))
+                tree_widget.addTopLevelItem(scenario_item)
+
+            query.finish()
 
     def save_answers(self):
         """
@@ -853,13 +1058,6 @@ class MainWindow(QMainWindow):
 
                         M_OperateDatabases.save_answer_to_AnswersDatabase(ANSWERS_DB, metric_id, answer, comment)
 
-    # def clean_answers_from_AnswersDatabase(self):
-    #     query = QSqlQuery(ANSWERS_DB)
-
-    #     # Clean existing contents of the answers table
-    #     query.exec("DELETE FROM MetricAnswers")
-
-
     ##################Define functions to button behaviour:
     def savefile(self):
         global ANSWERS_DB
@@ -873,6 +1071,7 @@ class MainWindow(QMainWindow):
             ANSWERS_DB.open()
 
         M_OperateDatabases.verifyAnswersDatabase(ANSWERS_DB)
+        M_OperateDatabases.setConsequencesTables(REFUSS_DB, ANSWERS_DB)
 
         self.save_answers()
         return
@@ -906,6 +1105,7 @@ class MainWindow(QMainWindow):
     def dashboard_btn_toggled(self):
         self.ui.BodyWidget.setCurrentIndex(5)
         self.ui.TitlesWidget.setCurrentIndex(5)
+        self.savefile()
         self.UpdateDashboardPage()
 
     def closeEvent(self, event):
@@ -950,7 +1150,7 @@ class MainWindow(QMainWindow):
         MetricsOptions = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "MetricsOptions")
 
         ScenarioSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioSetup")
-        ScenarioMetrics = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioMetrics")
+        PerformanceAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "PerformanceAnswers")
         MetricsAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "MetricAnswers")
         
         HazardLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "HazardLibrary")
@@ -1017,7 +1217,7 @@ class MainWindow(QMainWindow):
 
         # PLOT EMPTY PERFROMANCE PLOTS:
 
-        self.Scenarios_List = ScenarioMetrics["ScenarioName"].tolist()
+        self.Scenarios_List = PerformanceAnswers["ScenarioName"].tolist()
 
         M_Operate_GUI_Elements.updateQComboBox(self.ui.PSS_ComboBox, self.Scenarios_List)
         
@@ -1026,21 +1226,21 @@ class MainWindow(QMainWindow):
         self.ScenarioList_model = QStandardItemModel()
         self.ui.PSS_ScenarioList.setModel(self.ScenarioList_model)
         
-        #Rename ScenarioMetrics to match the rest
+        #Rename PerformanceAnswers to match the rest
         new_column_names = {"M2111": "P1.1.1",
                             "M2112": "P1.1.2",
                             "M2121": "P1.2.1"
                             }  
         
-        ScenarioMetrics.rename(columns=new_column_names, inplace=True)
-        ScenarioMetrics.set_index("ScenarioName", inplace = True)
+        PerformanceAnswers.rename(columns=new_column_names, inplace=True)
+        PerformanceAnswers.set_index("ScenarioName", inplace = True)
         
         PerformanceConsequencesRating = M_ResilienceCalculus.Caculate_PerformanceConsequencesRating(HazardLibrary, HazardSetup, HazardAnswers)
         
-        #Create a list of plot to be updated on the run qhen the Scenario selection changes
+        #Create a list of plots to be updated on the run when the Scenario selection changes
         self.PerformancePlots = []
         
-        self.SPR_plot = M_PlotGraphs.plotPerformances(DataFrame = ScenarioMetrics,
+        self.SPR_plot = M_PlotGraphs.plotPerformances(DataFrame = PerformanceAnswers,
                                               xScale = 1,
                                               DestinyWidget = self.ui.SPR_Widget)
         
@@ -1053,7 +1253,7 @@ class MainWindow(QMainWindow):
         
         
         #Calculate each Scenario Resilience has the average of all performance and hazard metrics
-        ScenariosPerformanceResilience = pd.merge(ScenarioMetrics, PerformanceConsequencesRating, left_index=True, right_index=True).astype(float).mean(axis=1)
+        ScenariosPerformanceResilience = pd.merge(PerformanceAnswers, PerformanceConsequencesRating, left_index=True, right_index=True).astype(float).mean(axis=1)
         ScenariosPerformanceResilience = pd.DataFrame(ScenariosPerformanceResilience, columns=["PerRes"])
         
         self.ResiliencePlots = []
@@ -1323,6 +1523,7 @@ def PerformanceMetricBlock(metric_id, metric_name, metric_question):
         Dimension = "F"
     else:
         Dimension = "P"
+        
     metric_id_label = f"{Dimension}{metric_id[2:]}"
 
     metric_id_label = QLabel(f"{metric_id_label}: {metric_name}")
@@ -1342,7 +1543,7 @@ def PerformanceMetricBlock(metric_id, metric_name, metric_question):
 
     if Dimension == "P":
         Setup_model = PerformanceSqlTableModel(db = ANSWERS_DB, non_editable_columns= [0])
-        Setup_model.setTable("ScenarioMetrics")
+        Setup_model.setTable("PerformanceAnswers")
 
         # Set the columns to be displayed
         indicator_column_name = f"M{metric_id.replace('.', '')}"
@@ -1393,7 +1594,6 @@ def PerformanceMetricBlock(metric_id, metric_name, metric_question):
         table_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # Disable vertical scrolling
         table_view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)  # Smooth scrolling
         table_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)  # Adjust the height based on the content
- 
 
         table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
 
@@ -1506,11 +1706,9 @@ def updateHazardTableViews(StackedWidget: QStackedWidget):
                         )
                     
                     if hazard_name == "Buildings Damage (B1)":
-                        
                         #delegate for buttons in the cells
                         #each button goes to the
                         pass
-                    
                               
                     # Set the EditStrategy of the model
                     new_model.setEditStrategy(PerformanceSqlTableModel.EditStrategy.OnFieldChange)
@@ -1592,12 +1790,6 @@ def updateHazardTableViews(StackedWidget: QStackedWidget):
         else:
             print("Page with pageName '2.2.1' not found.")
 
-# def get_column_index(model, column_name):
-#     for i in range(model.columnCount()):
-#         if model.headerData(i, Qt.Horizontal) == column_name:
-#             return i
-#     return False
-
 def main():
     global REFUSS_DB, ANSWERS_DB
 
@@ -1609,7 +1801,7 @@ def main():
     WelcomePage = WelcomeWindow()
     WelcomePage.exec()
 
-    REFUSSDatabasePath = 'database\REFUSS_V0.db'
+    REFUSSDatabasePath = 'database\REFUSS_V7.db'
     AnswersDatabasePath = WelcomePage.fileSelected
     Status = WelcomePage.Status
 

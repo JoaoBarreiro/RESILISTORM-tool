@@ -2,9 +2,6 @@ import pandas as pd
 import sqlite3
 from openpyxl import Workbook, load_workbook
 
-
-
-
 def main():
     # SQLite3 database file path
     db_file = 'database\REFUSS_V0.db'

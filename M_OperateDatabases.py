@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 from PySide6.QtSql import QSqlQuery, QSqlDatabase
 
-def establishDatabaseConnections(DatabaseList):
+def establishDatabaseConnections(DatabaseList: list):
     """
     Establishes database connections.
 
@@ -31,7 +31,7 @@ def closeDatabaseConnections(DatabaseList: list):
         if database.isOpen():
             database.close()
 
-def verifyAnswersDatabase(Answers_Database):
+def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
     
     query = QSqlQuery(Answers_Database)
 
@@ -46,7 +46,8 @@ def verifyAnswersDatabase(Answers_Database):
         print(f"Error creating MetricAnswers table: {query.lastError().text()}")
 
     if not query.exec("CREATE TABLE IF NOT EXISTS ScenarioSetup ("
-               "ScenarioName TEXT PRIMARY KEY, "
+               "ScenarioID INTEGER UNIQUE PRIMARY KEY AUTOINCREMENT,"
+               "ScenarioName TEXT UNIQUE, "
                "ScenarioSystemConfig TEXT, "
                "ScenarioRainfall TEXT, "
                "ScenarioOutfall TEXT, "
@@ -54,45 +55,34 @@ def verifyAnswersDatabase(Answers_Database):
                ):
         print(f"Error creating ScenarioSetup table: {query.lastError().text()}")
 
-
     if not query.exec("CREATE TABLE IF NOT EXISTS HazardSetup ("
-               "HazardName TEXT PRIMARY KEY , "
+               "HazardName TEXT PRIMARY KEY, "
                "HazardUnit TEXT, "
                "HazardComment TEXT)"
                ):
         print(f"Error creating HazardSetup table: {query.lastError().text()}")
-
-    # if not query.exec("CREATE TABLE IF NOT EXISTS HazardSetup ("
-    #            "HazardName TEXT PRIMARY KEY , "
-    #            "HazardClasses INTEGER, "
-    #            "HazardUnit TEXT, "
-    #            "HazardComment TEXT)"
-    #            ):
-    #     print(f"Error creating HazardSetup table: {query.lastError().text()}")
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS ScenarioSetup ("
-               "ScenarioName TEXT PRIMARY KEY, "
-               "ScenarioSystemConfig TEXT, "
-               "ScenarioRainfall TEXT, "
-               "ScenarioOutfall TEXT, "
-               "ScenarioComment TEXT)"
+        
+    if not query.exec("CREATE TABLE IF NOT EXISTS IndicatorsSetup ("
+               "IndicatorID TEXT UNIQUE, "
+               "IndicatorUnit TEXT, "
+               "IndicatorComplement TEXT)"
                ):
-        print(f"Error creating ScenarioSetup table: {query.lastError().text()}")
+        print(f"Error creating IndicatorsSetup table: {query.lastError().text()}")
 
-    if not query.exec("CREATE TABLE IF NOT EXISTS ScenarioMetrics ("
-               "ScenarioName TEXT PRIMARY KEY, "
+    if not query.exec("CREATE TABLE IF NOT EXISTS PerformanceAnswers ("
+               "ScenarioID INTEGER PRIMARY KEY, "
                "M2111 TEXT, "
                "M2112 TEXT, "
                "M2121 TEXT, "
-               "FOREIGN KEY (ScenarioName) REFERENCES ScenarioSetup (ScenarioName) ON DELETE CASCADE ON UPDATE CASCADE)"
+               "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
                ):
-        print(f"Error creating ScenarioMetrics table: {query.lastError().text()}")
+        print(f"Error creating PerformanceAnswers table: {query.lastError().text()}")
 
     if not query.exec("CREATE TABLE IF NOT EXISTS HazardAnswers ("
             "HazardName TEXT, "
-            "ScenarioName TEXT, "
+            "ScenarioID INTEGER, "
             "FOREIGN KEY (HazardName) REFERENCES HazardSetup (HazardName) ON DELETE CASCADE ON UPDATE CASCADE,"
-            "FOREIGN KEY (ScenarioName) REFERENCES ScenarioSetup (ScenarioName) ON DELETE CASCADE ON UPDATE CASCADE)"
+            "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
             ):
         print(f"Error creating HazardAnswers table: {query.lastError().text()}")
 
@@ -102,33 +92,33 @@ def verifyAnswersDatabase(Answers_Database):
 
     ######### QUERIES TO UPDATE TABLES ##################
 
-    query.exec("DROP TRIGGER IF EXISTS Upload_ScenarioName_at_ScenarioMetrics")
+    query.exec("DROP TRIGGER IF EXISTS Upload_ScenarioID_at_PerformanceAnswers")
     if not query.exec("""
-        CREATE TRIGGER Upload_ScenarioName_at_ScenarioMetrics
+        CREATE TRIGGER Upload_ScenarioID_at_PerformanceAnswers
         AFTER INSERT ON ScenarioSetup
         FOR EACH ROW
         BEGIN
-            INSERT INTO ScenarioMetrics (ScenarioName) VALUES (NEW.ScenarioName);
+            INSERT INTO PerformanceAnswers (ScenarioID) VALUES (NEW.ScenarioID);
         END
     """):
-        print(f"Error Upload_ScenarioName_at_ScenarioMetrics: {query.lastError().text()}")
+        print(f"Error Upload_ScenarioID_at_PerformanceAnswers: {query.lastError().text()}")
 
-    query.exec("DROP TRIGGER IF EXISTS Update_ScenarioName")
+    query.exec("DROP TRIGGER IF EXISTS Update_ScenarioID")
     if not query.exec("""
-        CREATE TRIGGER Update_ScenarioName
-        AFTER UPDATE OF ScenarioName ON ScenarioSetup
+        CREATE TRIGGER Update_ScenarioID
+        AFTER UPDATE OF ScenarioID ON ScenarioSetup
         FOR EACH ROW
         BEGIN
-            UPDATE ScenarioMetrics
-            SET ScenarioName = NEW.ScenarioName
-            WHERE ScenarioName = OLD.ScenarioName;
+            UPDATE PerformanceAnswers
+            SET ScenarioID = NEW.ScenarioID
+            WHERE ScenarioID = OLD.ScenarioID;
 
             UPDATE HazardAnswers
-            SET ScenarioName = NEW.ScenarioName
-            WHERE ScenarioName = OLD.ScenarioName;
+            SET ScenarioID = NEW.ScenarioID
+            WHERE ScenarioID = OLD.ScenarioID;
         END
     """):
-        print(f"Error Update_ScenarioName: {query.lastError().text()}")
+        print(f"Error Update_ScenarioID: {query.lastError().text()}")
 
     query.exec("DROP TRIGGER IF EXISTS Update_HazardName")
     if not query.exec("""
@@ -141,8 +131,7 @@ def verifyAnswersDatabase(Answers_Database):
             WHERE HazardName = OLD.HazardName;
         END
     """):
-        print(f"Error Update_ScenarioName: {query.lastError().text()}")
-
+        print(f"Error Update_ScenarioID: {query.lastError().text()}")
 
     query.exec("DROP TRIGGER IF EXISTS Delete_Scenario")
     if not query.exec("""
@@ -150,11 +139,11 @@ def verifyAnswersDatabase(Answers_Database):
         AFTER DELETE ON ScenarioSetup
         FOR EACH ROW
         BEGIN
-            DELETE FROM ScenarioMetrics
-            WHERE ScenarioName = OLD.ScenarioName;
+            DELETE FROM PerformanceAnswers
+            WHERE ScenarioID = OLD.ScenarioID;
 
             DELETE FROM HazardAnswers
-            WHERE ScenarioName = OLD.ScenarioName;
+            WHERE ScenarioID = OLD.ScenarioID;
         END
     """):
         print(f"Error Delete_Scenario: {query.lastError().text()}")
@@ -178,8 +167,8 @@ def verifyAnswersDatabase(Answers_Database):
         CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_HazardSetup
         AFTER INSERT ON HazardSetup
         BEGIN
-            INSERT INTO HazardAnswers (HazardName, ScenarioName)
-                SELECT NEW.HazardName, ScenarioName
+            INSERT INTO HazardAnswers (HazardName, ScenarioID)
+                SELECT NEW.HazardName, ScenarioID
                 FROM ScenarioSetup;
         END;
     """):
@@ -190,15 +179,90 @@ def verifyAnswersDatabase(Answers_Database):
         CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_ScenarioSetup
         AFTER INSERT ON ScenarioSetup
         BEGIN
-            INSERT INTO HazardAnswers (HazardName, ScenarioName)
-                SELECT HazardName, NEW.ScenarioName
+            INSERT INTO HazardAnswers (HazardName, ScenarioID)
+                SELECT HazardName, NEW.ScenarioID
                 FROM HazardSetup;
         END;
     """):
         print(f"Error Insert_HazardAnswers_from_ScenarioSetup: {query.lastError().text()}")
 
     Answers_Database.commit()
+
+def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
     
+    ConsequencesLibrary = fetch_table_from_database(REFUSS_Database, "IndicatorsLibrary")
+    ConsequencesLibrary.set_index("IndicatorID", inplace = True)
+        
+    query = QSqlQuery(Answers_Database)
+
+    for indicatorID, properties in ConsequencesLibrary.iterrows():
+        ClassesLabels = properties["ClassesLabel"].split("; ")
+        
+        # Generate the SQL query to create the table with dynamic column names
+        columns = []
+        for label in ClassesLabels:
+            columns.append(f"{label.replace(' ','')} REAL")
+        
+        columns_str = ", ".join(columns)
+        
+        if not query.exec(f"CREATE TABLE IF NOT EXISTS {indicatorID} ("
+                f"ScenarioID INTEGER PRIMARY KEY, "
+                f"{columns_str})"
+                ):
+            print(f"Error creating {indicatorID} table: {query.lastError().text()} in setConsequencesTables")
+
+    for table_name, _ in ConsequencesLibrary.iterrows():
+        # Drop the trigger if it exists
+        query.exec(f"DROP TRIGGER IF EXISTS Upload_ScenarioID_at_{table_name}")
+
+        # Create a trigger for the current table
+        trigger_sql = f"""
+            CREATE TRIGGER Upload_ScenarioID_at_{table_name}
+            AFTER INSERT ON ScenarioSetup
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO {table_name} (ScenarioID) VALUES (NEW.ScenarioID);
+            END
+        """
+        
+        # Execute the trigger creation SQL
+        if not query.exec(trigger_sql):
+            print(f"Error creating trigger Upload_ScenarioID_at_{table_name}: {query.lastError().text()}")
+
+
+    # Drop the trigger if it exists
+    query.exec("DROP TRIGGER IF EXISTS Delete_Scenario_at_Consequences")
+
+    # Construct the SQL statements for DELETE actions
+    delete_statements = [
+        f"DELETE FROM {table_name} WHERE ScenarioID = OLD.ScenarioID"
+        for table_name, _ in ConsequencesLibrary.iterrows()
+    ]
+
+    # Join the DELETE statements with semicolons and line breaks
+    delete_sql = ";\n".join(delete_statements)
+
+    # Create a single trigger for ScenarioSetup
+    trigger_sql = f"""
+        CREATE TRIGGER Delete_Scenario_at_Consequences
+        AFTER DELETE ON ScenarioSetup
+        FOR EACH ROW
+        BEGIN
+            {delete_sql};
+        END
+    """
+
+    # Execute the trigger creation SQL
+    if not query.exec(trigger_sql):
+        print(f"Error creating trigger Delete_Scenario_at_Consequences: {query.lastError().text()}")
+
+
+    
+    
+    
+
+
+   
 def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
 
     query = QSqlQuery(REFUSS_Database)
@@ -337,4 +401,29 @@ def countDatabaseRows(Database: QSqlDatabase, TableName: str):
         if query.next():
             row_count = query.value(0)
         return row_count
+    return False
+
+def getUniqueColumnValues(Database: QSqlDatabase, TableName: str, ColumnName: str):
+    """
+    Retrieves a list of unique values from a specific column in a database table.
+
+    Parameters:
+    - Database (QSqlDatabase): The database connection to use for the query.
+    - TableName (str): The name of the table to retrieve values from.
+    - ColumnName (str): The name of the column from which to fetch unique values.
+
+    Returns:
+    - unique_values (list): A list of unique values from the specified column.
+    - bool: False if the query execution fails.
+    """
+
+    query = QSqlQuery(Database)
+    query.prepare(f"SELECT DISTINCT {ColumnName} FROM {TableName}")
+
+    if query.exec():
+        unique_values = []
+        while query.next():
+            value = query.value(0)
+            unique_values.append(value) if value not in unique_values else None
+        return unique_values
     return False

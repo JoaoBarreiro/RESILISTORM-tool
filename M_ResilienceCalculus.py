@@ -1,7 +1,6 @@
 import pandas as pd
 
-from HazardClasses import ClassHazards
-
+from M_HazardClasses import ClassHazard
 
 def Caculate_PerformanceConsequencesRating(HazardLibrary: pd.DataFrame, HazardSetup: pd.DataFrame, HazardAnswers: pd.DataFrame):
     
@@ -19,7 +18,7 @@ def Caculate_PerformanceConsequencesRating(HazardLibrary: pd.DataFrame, HazardSe
     for Hazard, row in HazardAnswers.iterrows():
         HazardID = HazardLibrary.loc[Hazard, "ID"]
         HazardUnit = HazardSetup.loc[Hazard, "HazardUnit"]
-        NrClasses = HazardLibrary.loc[Hazard, "NrClasses"]
+        NrClasses = int(HazardLibrary.loc[Hazard, "NrClasses"])
         
         row_Scenario = row[0]
         if HazardUnit == "%":
@@ -28,8 +27,15 @@ def Caculate_PerformanceConsequencesRating(HazardLibrary: pd.DataFrame, HazardSe
             AnswerType = 2
         
         if HazardID in ["V1", "P1"]:
-            classValues = row[1:1+NrClasses].astype(float).tolist()
-            HazardResilience = ClassHazards(classValues, AnswerType, HazardID).calculateHazard()
+            HazardResilience = 0
+            # Verifies that all the class values are answered
+            for value in row[1:1+NrClasses]:
+                if value == '':
+                    HazardResilience = None
+                    break
+            if HazardResilience != None:    
+                classValues = row[1:1+NrClasses].astype(float).tolist()
+                HazardResilience = ClassHazard(classValues, AnswerType, HazardID).calculateHazard()
             
         PerformanceConsequenceRating.loc[row_Scenario, Hazard] = HazardResilience
     

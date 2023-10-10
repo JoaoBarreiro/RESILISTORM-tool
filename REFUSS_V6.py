@@ -12,11 +12,11 @@ from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QStandardItemModel, QValidator, QIntValidator, QAction
 
-from W_MainPage_V5_ui import Ui_MainWindow
+from W_MainPage_V5 import Ui_MainWindow
 from W_SetupWindow_ui import Ui_HazardSetup
-from W_WelcomeWindow_ui import Ui_WelcomeWindow
-from W_HazardB1_ui import Ui_SettingB1
-from W_Scenario_Setup import Ui_ScenarioSetup
+from W_WelcomeWindow import Ui_WelcomeWindow
+from W_HazardB1 import Ui_SettingB1
+from M_PerformanceSetup import Ui_ScenarioSetup
 
 import M_OperateDatabases
 import M_Operate_GUI_Elements
@@ -905,6 +905,7 @@ class MainWindow(QMainWindow):
     def dashboard_btn_toggled(self):
         self.ui.BodyWidget.setCurrentIndex(5)
         self.ui.TitlesWidget.setCurrentIndex(5)
+        self.savefile()
         self.UpdateDashboardPage()
 
     def closeEvent(self, event):

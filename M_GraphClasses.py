@@ -732,10 +732,11 @@ class ScatterPlotWidget(QWidget):
             values = self.df[category].tolist()  # Get the values for the category
 
             for j, value in enumerate(values):
-                value = float(value)
-                scenario_name = self.df.index[j]
-                scatter = self.ax.scatter(value, i, marker='o', color = self.df.at[self.df.index[j], "Color"], s=self.marker_size, label=scenario_name, alpha = 0, zorder = 10)
-                self.scatter_objects.append(scatter)
+                if value != None:
+                    value = float(value)
+                    scenario_name = self.df.index[j]
+                    scatter = self.ax.scatter(value, i, marker='o', color = self.df.at[self.df.index[j], "Color"], s=self.marker_size, label=scenario_name, alpha = 0, zorder = 10)
+                    self.scatter_objects.append(scatter)
 
         # Plot a horizontal light grey line between 0 and 1 for each category
         for i, _ in enumerate(self.categories):

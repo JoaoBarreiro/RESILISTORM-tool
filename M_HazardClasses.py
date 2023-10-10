@@ -1,31 +1,50 @@
 from matplotlib import pyplot as plt
+from typing import Optional
 import pandas as pd
 import numpy as np
 
-class ClassHazards:
-    def __init__(self, ClassesValues: list, ValuesType: int, Methodology: str ):
+"""
+This module defines diferent types of Hazards, as classes, and its associated operations.
+One class corresponds to one methodology.
+
+"""
+
+def setHazardType(Methodology: str):
+
+    if Methodology in ["P1", "V1"]:
+        return ClassHazard(Methodology)
+    elif Methodology == "B1":
+        return BuildingHazard(Methodology)
+
+
+class ClassHazard:
+    def __init__(self, Methodology: str,
+                 ClassesValues: Optional[list] = None,
+                 ValuesType: Optional[int] = None,
+                 ):
         """_summary_
 
         Args:
             ClassesValues (list): Provide the hazard values for each class, from the lower to the higer class, i.e, lower hazard to higher hazard.
             ValuesType (int): 1 for percentage, 2 for value
             Methodology (int): Choose methodology to calculate the hazard
-            P1: Pedestrian hazard by DEFRA (2005)
-            V1: Vehicles hazard by Martinez et al (2017)
+                P1: Pedestrian hazard by DEFRA (2005)
+                V1: Vehicles hazard by Martinez et al (2017)
         """       
-        MethodologyNrClasses = {"P1": 4,
-                                "V1": 3}
+        self.MethodologyNrClasses = {"P1": 4,
+                                     "V1": 3}
          
         if ClassesValues is None or ClassesValues == []:
-            raise TypeError("ClassHazards: ClassesValues is None, must be a list with values")
+            #raise TypeError("ClassHazards: ClassesValues is None, must be a list with values")
+            pass
         
         if ValuesType != 1 and ValuesType != 2:
             raise TypeError("ClassHazards: ValuesType must be 1 (for %) or 2 (for real)")
         
-        if Methodology not in MethodologyNrClasses.keys():
+        if Methodology not in self.MethodologyNrClasses.keys():
             raise TypeError("ClassHazards: Methodology not available...")
         
-        if len(ClassesValues) != MethodologyNrClasses[Methodology] :
+        if len(ClassesValues) != self.MethodologyNrClasses[Methodology] :
             raise TypeError("ClassHazards: Number of class values does not match the number of classes of the methodlogy")
        
         self.values = ClassesValues
@@ -33,18 +52,21 @@ class ClassHazards:
         self.datatype = ValuesType
        
         self.ClassesWeights = self.getClassesWeights()
-        
+    
+    def getNumberOfClasses(self):
+        return self.MethodologyNrClasses[self.methodology]
+    
     def getClassesWeights(self):
         if self.methodology == 'P1':                #Pedestrian hazard by DEFRA (2005)
             ClassesWeights = [("Low",       1.0),
-                            ("Moderate",    0.4),
-                            ("High",        0.1),
-                            ("Very High",   0.0)]
+                              ("Moderate",    0.4),
+                              ("High",        0.1),
+                              ("Very High",   0.0)]
             
         elif self.methodology == 'V1':              #Vehicles hazard by Martinez et al (2017)
             ClassesWeights = [("Low",       1.0),
-                            ("Moderate",    0.4),
-                            ("High",        0.0)]
+                              ("Moderate",    0.4),
+                              ("High",        0.0)]
         
         else:
             #Space for new methodologies
@@ -61,6 +83,9 @@ class ClassHazards:
             denominator = sum(self.values)
         
         for index, value in enumerate(self.values):
+            ##############
+            ### VERIFICAR QUE A SOMA DOS VALORES DEVERA SER IGUAL AO DENOMINADOR, cc devolve erro ####
+            ##############
             classvalue = self.values[index] * self.ClassesWeights[index][1] / denominator   
             Hazard += classvalue
         return round(Hazard, 2)
@@ -68,9 +93,10 @@ class ClassHazards:
 class BuildingHazard:
     def __init__(self,
                  Methodology: str,
-                 UserBuildingUsesOnMethodology: dict,
-                 UserBuilingsSize: dict,
-                 WaterHeightOnBuildings: dict):
+                 UserBuildingUsesOnMethodology: Optional[dict] = None,
+                 UserBuilingsSize: Optional[dict] = None,
+                 WaterHeightOnBuildings: Optional[dict] = None):
+        
         """_summary_
 
         Args:
@@ -86,6 +112,7 @@ class BuildingHazard:
         """
         
         MethodologyNrClasses = {"B1": 3}
+        
         MethodologyUses = {"B1": ["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL"]}
         
         if Methodology not in MethodologyNrClasses.keys():
@@ -200,10 +227,10 @@ class BuildingHazard:
 
 if __name__ == '__main__':
     testPed = [732787.76, 57829.44, 115074.42, 1525.20]
-    HazardPedestrian = ClassHazards(testPed, 2, 'P1').calculateHazard()
+    HazardPedestrian = ClassHazard(testPed, 2, 'P1').calculateHazard()
     print(HazardPedestrian)
     testVehic = [80.34, 4.39, 15.26]
-    HazardVehicles = ClassHazards(testVehic, 1, 'V1').calculateHazard()
+    HazardVehicles = ClassHazard(testVehic, 1, 'V1').calculateHazard()
     print(HazardVehicles)
     
     ["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL"]
