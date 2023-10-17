@@ -9,18 +9,27 @@ from functools import partial
 
 from M_Fonts import MyFont
 
+
+import M_OperateDatabases
+import pandas as pd
+
 import sys
 import re
 
 class IndicatorsSelection(QMainWindow):
-    def __init__(self, refuss_db, answer_db):
+    
+    windowClosed = Signal()
+    
+    def __init__(self, indicators_sv, indicators, answers_db):
         super().__init__()
-        self.refuss_db = refuss_db
-        self.answer_db = answer_db
+        self.indicators_sv = indicators_sv
+        
+        self.indicators = indicators
+        self.answers_db = answers_db
 
         self.radio_button_groups = {}  # Dictionary to manage radio button groups for each class
                 
-        self.selected_indicators = self.load_selected_indicators()  
+        self.selected_indicators = load_selected_indicators(self.answers_db)  
                
         self.setWindowModality(Qt.WindowModal) 
         self.init_ui()
@@ -31,17 +40,14 @@ class IndicatorsSelection(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-                
-        # Create the UI elements and check if indicators are already selected
+                      
+        indicators_classes = self.indicators['indicators_classes']
+        indicators_library = self.indicators['indicators_library']
         
-        # Fetch data from IndicatorsClasses and IndicatorsLibrary tables
-        query_class = QSqlQuery(self.refuss_db)
-        query_class.exec("SELECT * FROM IndicatorsClasses")
-
-        while query_class.next():
-            class_id = query_class.value(0)
-            class_name = query_class.value(1)
-            exclusive = query_class.value(2)
+        # Create the UI elements and check if indicators are already selected               
+        for class_id, class_prop in indicators_classes.iterrows():
+            class_name = class_prop['IndicatorClassName']
+            exclusive = class_prop['Exclusive']
             
             label = QLabel(class_name)
             label.setFont(MyFont(10, True))
@@ -66,14 +72,10 @@ class IndicatorsSelection(QMainWindow):
                 button_group.setObjectName(class_name)
                 button_group.setExclusive(False)
     
-            self.radio_button_groups[class_name] = button_group       
+                self.radio_button_groups[class_name] = button_group
             
-            query_indicator = QSqlQuery(self.refuss_db)
-            query_indicator.exec(f"SELECT * FROM IndicatorsLibrary WHERE IndicatorClass='{class_name}'")        
-                  
-            while query_indicator.next():
-                indicator_id = query_indicator.value(0)
-                indicator_name = query_indicator.value(4)
+            for indicator_id, indicator_prop in indicators_library[indicators_library['IndicatorClass'] == class_name].iterrows():
+                indicator_name = indicator_prop['ShowName']
 
                 if exclusive == 'YES':
                     radiobutton = QRadioButton(text = indicator_name, parent = frame)
@@ -101,8 +103,8 @@ class IndicatorsSelection(QMainWindow):
                     if indicator_id in self.selected_indicators[class_id]:
                         checkbox.setChecked(True)       
             
-            layout.addWidget(frame)                              
-            
+            layout.addWidget(frame)                           
+
     def handle_radio_clicked(self):
         sender = self.sender()
         button_group = self.radio_button_groups.get(sender.parent().objectName())  # Get the button group of the sender
@@ -116,38 +118,23 @@ class IndicatorsSelection(QMainWindow):
         if selected:
             if indicator_id not in self.selected_indicators[class_id]:
                 self.selected_indicators[class_id].append(indicator_id)
+            
 
         else:
             if indicator_id in self.selected_indicators[class_id]:
                 self.selected_indicators[class_id].remove(indicator_id)
-            
-    def load_selected_indicators(self):
-        selected_indicators = {}
-        
-        query = QSqlQuery(self.answer_db)
-        query.exec("SELECT IndicatorID FROM IndicatorsSetup")
-
-        while query.next():
-            indicator_id = query.value(0)
-            class_id = re.sub(r'\d', '', indicator_id)
-            if class_id not in selected_indicators:
-                selected_indicators[class_id] = []
-
-            selected_indicators[class_id].append(query.value(0))
-
-        return selected_indicators
  
-
     def closeEvent(self, event):
         # Perform add/delete operations in the ANSWERS_DB IndicatorsSetup table when the Settings window is closed
         self.update_indicators_in_answers_db()
         print(self.selected_indicators)
+        self.windowClosed.emit()
         event.accept()
 
     def update_indicators_in_answers_db(self):
             
         try:
-            query = QSqlQuery(self.answer_db)
+            query = QSqlQuery(self.answers_db)
             query.exec("SELECT IndicatorID FROM IndicatorsSetup")
             existing_ids = set()
             while query.next():
@@ -166,16 +153,49 @@ class IndicatorsSelection(QMainWindow):
                         print("Error:", query.lastError().text())
                         
             # Commit the changes
-            self.answer_db.transaction()
-            if self.answer_db.commit():
+            self.answers_db.transaction()
+            if self.answers_db.commit():
                 print("Update successful")
             else:
-                print("Commit failed", self.answer_db.lastError().text())
+                print("Commit failed", self.answers_db.lastError().text())
 
         except Exception as e:
             print("Error:", str(e))
             
+def get_selected_indicators(indicators_sv:dict, AnswersDatabase: QSqlDatabase):
+    class_selected_indicators = {}
+    selected_indicators = M_OperateDatabases.getUniqueColumnValues(AnswersDatabase, "IndicatorsSetup", "IndicatorID")
+    
+    for indicator_id, indicator in indicators_sv.items():
+        class_id = re.sub(r'\d', '', indicator_id)
+        if indicator_id in selected_indicators:
+            indicator._selected = True   #Commit change directly to "private" variable of the Indicator class
+            if class_id not in selected_indicators:
+                class_selected_indicators[class_id] = []
+            else:
+                class_selected_indicators[class_id].append(indicator_id)
+    
+    return class_selected_indicators
+    
+def load_selected_indicators(AnswersDatabase: QSqlDatabase):
+    selected_indicators = {}
+    
+    query = QSqlQuery(AnswersDatabase)
+    query.exec("SELECT IndicatorID FROM IndicatorsSetup")
+
+    while query.next():
+        indicator_id = query.value(0)
+        class_id = re.sub(r'\d', '', indicator_id)
+        if class_id not in selected_indicators:
+            selected_indicators[class_id] = []
+
+        selected_indicators[class_id].append(query.value(0))
+
+    return selected_indicators
+
+
+            
+
 def flatten_dict(dict):
     flattened_list = [item for sublist in dict.values() for item in sublist]    
     return flattened_list
-

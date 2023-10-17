@@ -148,7 +148,7 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
     """):
         print(f"Error Delete_Scenario: {query.lastError().text()}")
 
-    query.exec("DROP TRIGGER IF EXISTS Delete_Hazard")
+    query.exec("DROP TRIGGER IF EXISTS INSERT INTODelete_Hazard")
     if not query.exec("""
         CREATE TRIGGER IF NOT EXISTS Delete_Hazard
         AFTER DELETE ON HazardSetup
@@ -200,67 +200,73 @@ def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlD
         
         # Generate the SQL query to create the table with dynamic column names
         columns = []
-        for label in ClassesLabels:
-            columns.append(f"{label.replace(' ','')} REAL")
+        for index, label in enumerate(ClassesLabels):
+            columns.append(f"{label} REAL")
+            #columns.append(f"{label.replace(' ','')} REAL")
         
         columns_str = ", ".join(columns)
         
-        if not query.exec(f"CREATE TABLE IF NOT EXISTS {indicatorID} ("
-                f"ScenarioID INTEGER PRIMARY KEY, "
-                f"{columns_str})"
+        if query.exec(f"CREATE TABLE IF NOT EXISTS {indicatorID} ("
+                f"ScenarioID INTEGER PRIMARY KEY REFERENCES ScenarioSetup (ScenarioID), "
+                f"{columns_str} )"
                 ):
+
+            # Create a different variable for the inner loop
+            inner_query = QSqlQuery(Answers_Database)
+            scenario_query = QSqlQuery(Answers_Database)
+            scenario_query.exec("SELECT ScenarioID FROM ScenarioSetup")
+            
+            while scenario_query.next():
+                scenario_id = scenario_query.value(0)
+                if not inner_query.exec(f"INSERT INTO {indicatorID} (ScenarioID) VALUES ('{scenario_id}')"):
+                    print(f"Error inserting ScenarioID {scenario_id} into {indicatorID}: {query.lastError().text()}")
+        else:
             print(f"Error creating {indicatorID} table: {query.lastError().text()} in setConsequencesTables")
 
-    for table_name, _ in ConsequencesLibrary.iterrows():
-        # Drop the trigger if it exists
-        query.exec(f"DROP TRIGGER IF EXISTS Upload_ScenarioID_at_{table_name}")
 
-        # Create a trigger for the current table
-        trigger_sql = f"""
-            CREATE TRIGGER Upload_ScenarioID_at_{table_name}
-            AFTER INSERT ON ScenarioSetup
-            FOR EACH ROW
-            BEGIN
-                INSERT INTO {table_name} (ScenarioID) VALUES (NEW.ScenarioID);
-            END
-        """
+    # for table_name, _ in ConsequencesLibrary.iterrows():
+    #     # Drop the trigger if it exists
+    #     query.exec(f"DROP TRIGGER IF EXISTS Upload_ScenarioID_at_{table_name}")
+
+    #     # Create a trigger for the current table
+    #     trigger_sql = f"""
+    #         CREATE TRIGGER Upload_ScenarioID_at_{table_name}
+    #         AFTER INSERT ON ScenarioSetup
+    #         FOR EACH ROW
+    #         BEGIN
+    #             INSERT INTO {table_name} (ScenarioID) VALUES (NEW.ScenarioID);
+    #         END
+    #     """
         
-        # Execute the trigger creation SQL
-        if not query.exec(trigger_sql):
-            print(f"Error creating trigger Upload_ScenarioID_at_{table_name}: {query.lastError().text()}")
+    #     # Execute the trigger creation SQL
+    #     if not query.exec(trigger_sql):
+    #         print(f"Error creating trigger Upload_ScenarioID_at_{table_name}: {query.lastError().text()}")
 
+    # # Drop the trigger if it exists
+    # query.exec("DROP TRIGGER IF EXISTS Delete_Scenario_at_Consequences")
 
-    # Drop the trigger if it exists
-    query.exec("DROP TRIGGER IF EXISTS Delete_Scenario_at_Consequences")
+    # # Construct the SQL statements for DELETE actions
+    # delete_statements = [
+    #     f"DELETE FROM {table_name} WHERE ScenarioID = OLD.ScenarioID"
+    #     for table_name, _ in ConsequencesLibrary.iterrows()
+    # ]
 
-    # Construct the SQL statements for DELETE actions
-    delete_statements = [
-        f"DELETE FROM {table_name} WHERE ScenarioID = OLD.ScenarioID"
-        for table_name, _ in ConsequencesLibrary.iterrows()
-    ]
+    # # Join the DELETE statements with semicolons and line breaks
+    # delete_sql = ";\n".join(delete_statements)
 
-    # Join the DELETE statements with semicolons and line breaks
-    delete_sql = ";\n".join(delete_statements)
+    # # Create a single trigger for ScenarioSetup
+    # trigger_sql = f"""
+    #     CREATE TRIGGER Delete_Scenario_at_Consequences
+    #     AFTER DELETE ON ScenarioSetup
+    #     FOR EACH ROW
+    #     BEGIN
+    #         {delete_sql};
+    #     END
+    # """
 
-    # Create a single trigger for ScenarioSetup
-    trigger_sql = f"""
-        CREATE TRIGGER Delete_Scenario_at_Consequences
-        AFTER DELETE ON ScenarioSetup
-        FOR EACH ROW
-        BEGIN
-            {delete_sql};
-        END
-    """
-
-    # Execute the trigger creation SQL
-    if not query.exec(trigger_sql):
-        print(f"Error creating trigger Delete_Scenario_at_Consequences: {query.lastError().text()}")
-
-
-    
-    
-    
-
+    # # Execute the trigger creation SQL
+    # if not query.exec(trigger_sql):
+    #     print(f"Error creating trigger Delete_Scenario_at_Consequences: {query.lastError().text()}")
 
    
 def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
@@ -272,12 +278,16 @@ def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
     criteria_query = ("SELECT * FROM Criteria", "Criteria")
     metrics_query = ("SELECT * FROM Metrics", "Metrics")
     metrics_options_query = ("SELECT * FROM MetricsOptions", "MetricsOptions")
+    indicators_classes_query = ("SELECT * FROM IndicatorsClasses", "IndicatorsClasses")
+    indicators_library_query = ("SELECT * FROM IndicatorsLibrary", "IndicatorsLibrary")
 
     all_queries = [dimension_query,
                     objectives_query,
                     criteria_query,
                     metrics_query,
-                    metrics_options_query]
+                    metrics_options_query,
+                    indicators_classes_query,
+                    indicators_library_query]
 
     Results = []
 
@@ -295,7 +305,7 @@ def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
             print(f"Query execution failed: {error_message}")
             Results.append(None)
 
-    return Results[0], Results[1], Results[2], Results[3], Results[4]
+    return Results
 
 def ObjectivesFromDimension(REFUSS_Database: QSqlDatabase, dimension_id: int):
     

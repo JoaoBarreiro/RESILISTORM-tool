@@ -1,7 +1,21 @@
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
+                               QScrollArea, QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup,
+                               QTableView)
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+
+import M_OperateDatabases
+
+from M_IndicatorsSelection import flatten_dict
+
+from M_Fonts import MyFont
+
 from matplotlib import pyplot as plt
 from typing import Optional
 import pandas as pd
 import numpy as np
+import re
 
 """
 This module defines diferent types of Hazards, as classes, and its associated operations.
@@ -15,7 +29,6 @@ def setHazardType(Methodology: str):
         return ClassHazard(Methodology)
     elif Methodology == "B1":
         return BuildingHazard(Methodology)
-
 
 class ClassHazard:
     def __init__(self, Methodology: str,
@@ -224,6 +237,218 @@ class BuildingHazard:
             if value in values:
                 return key
 
+
+
+class Indicator:
+    
+    selection_state_changed = Signal(bool)
+    
+    def __init__(self, indicator_id: str, indicators: pd.DataFrame, answers_db: QSqlDatabase):
+        self.indicator_id = indicator_id
+        
+        indicators_classes = indicators['indicators_classes']
+        self.indicator_library = indicators['indicators_library'].loc[self.indicator_id]
+        
+        self.indicator_class = class_id = re.sub(r'\d', '', self.indicator_id)
+        
+        self.classes_nr = self.indicator_library['ClassesNr']
+        self.classes_labels = self.indicator_library['ClassesLabel'].split("; ")
+        self.show_name = self.indicator_library['ShowName']
+        self.reference = self.indicator_library['Reference']
+        self.possible_units = self.indicator_library['PossibleUnits'].split(";")
+        
+        self.answers_db = answers_db
+        
+        self._selected = False
+        
+        self.setup_widget = self.create_indicators_setup_widgets()
+        self.scenarios_view = {}
+        
+        self.setup_model = QSqlTableModel(db = self.answers_db)
+        self.answers_model = QSqlTableModel(db = self.answers_db)
+ 
+    @property
+    def selected(self):
+        return self._selected
+
+    @selected.setter
+    def selected(self, value):
+        if self._selected != value:
+            self._selected = value
+            #self.selection_state_changed.emit(value)
+            
+            existing_scenarios = M_OperateDatabases.getUniqueColumnValues(self.answers_db, "ScenarioSetup", "ScenarioID")
+            
+            if value == True:
+                print(f"{self.indicator_id} selected!")
+                                
+                self.setup_widget.show()
+                for scenario in existing_scenarios:
+                    self.scenarios_view[scenario].show()
+                
+            else:
+                print(f"{self.indicator_id} deselected!")
+                
+                self.setup_widget.hide()
+                for scenario in existing_scenarios:
+                    self.scenarios_view[scenario].show()
+        
+    def create_indicators_setup_widgets(self):
+        
+        indicator_widget = QWidget()
+        indicator_widget.setObjectName(self.indicator_id)
+        indicator_layout = QVBoxLayout(indicator_widget)
+        indicator_layout.setContentsMargins(0, 0, 0, 0)
+        
+        
+        indicator_text = f'Methodology: {self.reference}'
+        indicator_label = QLabel(indicator_text)
+        indicator_label.setFont(MyFont(10, True))
+        indicator_layout.addWidget(indicator_label)
+        
+        unit_layout = QHBoxLayout()
+        indicator_layout.addLayout(unit_layout)
+
+        
+        if len(self.possible_units) > 1:
+            unit_text = 'Select the data unit:'
+            unit_label = QLabel(unit_text)
+            unit_layout.addWidget(unit_label)
+            
+            model = QSqlTableModel(db = self.answers_db)
+            model.setTable("IndicatorsSetup")
+            model.select()
+            
+            unit_combo_box = QComboBox()
+            unit_combo_box.addItems(self.possible_units)
+            # Find the corresponding unit in the model
+            model_column_name = "IndicatorUnit"
+            model_row = find_model_row(model, 'IndicatorID', self.indicator_id)
+            
+            if model_row >= 0:
+                # Get the unit value from the model
+                initial_unit_value = model.data(model.index(model_row, model.fieldIndex(model_column_name)))
+                if initial_unit_value in self.possible_units:
+                    initial_index = self.possible_units.index(initial_unit_value)
+                    unit_combo_box.setCurrentIndex(initial_index)
+                else:
+                    update_model(0, self.indicator_id, unit_combo_box, model)
+
+            unit_combo_box.currentIndexChanged.connect(lambda index: update_model(index, self.indicator_id, unit_combo_box, model))
+            unit_layout.addWidget(unit_combo_box)
+            
+        else:
+            unit_text = f'Data unit: {self.possible_units[0]}'
+            unit_label = QLabel(unit_text)
+            unit_layout.addWidget(unit_label)   
+                
+        if self.indicator_id in ["P1", "P2", "V1"]:
+            pass
+        elif self.indicator_id in ["B1"]:
+            pass
+        elif self.indicator_id in ["SRP1", "SRP2", "SRP3"]:
+            pass
+            
+        return indicator_widget
+
+    def set_scenario_widget(self, scenario_id):
+        
+        scenario_model = QSqlTableModel(db = self.answers_db)
+        scenario_model.setTable(self.indicator_id)
+        scenario_model.setEditStrategy(QSqlTableModel.OnFieldChange)
+        scenario_model.setFilter(f"ScenarioID = '{scenario_id}'")
+        scenario_model.select()
+        
+        self.scenarios_view[scenario_id] = QTableView()
+        self.scenarios_view[scenario_id].setModel(scenario_model)
+        self.scenarios_view[scenario_id].setObjectName(f"{self.indicator_id}")
+        self.scenarios_view[scenario_id].setColumnHidden(0, True)            
+            
+        return self.scenarios_view[scenario_id]
+
+    def set_selected_state(self, selected_indicators):
+        if self.indicator_id in flatten_dict(selected_indicators):
+            self._selected = True
+        else:
+            self._selected = False
+            
+     
+# def create_indicators_setup_widgets(IndicatorsLibrary: pd.DataFrame, IndicatorID: str, AnswersDatabase: QSqlDatabase):
+    
+#     indicator_widget = QWidget()
+#     indicator_widget.setObjectName(IndicatorID)
+#     indicator_layout = QVBoxLayout(indicator_widget)
+#     indicator_layout.setContentsMargins(0, 0, 0, 0)
+    
+#     indicator_data = IndicatorsLibrary.loc[IndicatorID]
+    
+#     indicator_text = f'Methodology: {indicator_data["Reference"]}'
+#     indicator_label = QLabel(indicator_text)
+#     indicator_label.setFont(MyFont(10, True))
+#     indicator_layout.addWidget(indicator_label)
+    
+#     unit_layout = QHBoxLayout()
+#     indicator_layout.addLayout(unit_layout)
+    
+#     possible_units = indicator_data["PossibleUnits"].split("; ")
+    
+#     if len(possible_units) > 1:
+#         unit_text = 'Select the data unit:'
+#         unit_label = QLabel(unit_text)
+#         unit_layout.addWidget(unit_label)
+        
+#         model = QSqlTableModel(db = AnswersDatabase)
+#         model.setTable("IndicatorsSetup")
+#         model.select()
+        
+#         unit_combo_box = QComboBox()
+#         unit_combo_box.addItems(possible_units)
+#         # Find the corresponding unit in the model
+#         model_column_name = "IndicatorUnit"
+#         model_row = find_model_row(model, 'IndicatorID', IndicatorID)
+        
+#         if model_row >= 0:
+#             # Get the unit value from the model
+#             initial_unit_value = model.data(model.index(model_row, model.fieldIndex(model_column_name)))
+#             if initial_unit_value in possible_units:
+#                 initial_index = possible_units.index(initial_unit_value)
+#                 unit_combo_box.setCurrentIndex(initial_index)
+#             else:
+#                 update_model(0, IndicatorID, unit_combo_box, model)
+
+#         unit_combo_box.currentIndexChanged.connect(lambda index: update_model(index, IndicatorID, unit_combo_box, model))
+#         unit_layout.addWidget(unit_combo_box)
+        
+#     else:
+#         unit_text = f'Data unit: {possible_units[0]}'
+#         unit_label = QLabel(unit_text)
+#         unit_layout.addWidget(unit_label)   
+            
+#     if IndicatorID in ["P1", "P2", "V1"]:
+#         pass
+#     elif IndicatorID in ["B1"]:
+#         pass
+#     elif IndicatorID in ["SRP1", "SRP2", "SRP3"]:
+#         pass
+        
+#     return indicator_widget
+
+def update_model(index, IndicatorID, combo_box, model):
+    selected_value = combo_box.currentText()
+    model_column = "IndicatorUnit"
+    
+    model_row = find_model_row(model, 'IndicatorID', IndicatorID)
+    model.setData(model.index(model_row, model.fieldIndex(model_column)), selected_value)
+    model.submitAll()
+
+def find_model_row(model, model_column_name, search_name):
+    # Find the row in the model where the model_column_name value is equal to search_name
+    row = -1
+    for i in range(model.rowCount()):
+        if model.data(model.index(i, model.fieldIndex(model_column_name))) == search_name:
+            row = i
+            break
+    return row          
 
 if __name__ == '__main__':
     testPed = [732787.76, 57829.44, 115074.42, 1525.20]
