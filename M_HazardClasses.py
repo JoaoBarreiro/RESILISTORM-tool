@@ -237,8 +237,6 @@ class BuildingHazard:
             if value in values:
                 return key
 
-
-
 class Indicator:
     
     selection_state_changed = Signal(bool)
@@ -249,7 +247,8 @@ class Indicator:
         indicators_classes = indicators['indicators_classes']
         self.indicator_library = indicators['indicators_library'].loc[self.indicator_id]
         
-        self.indicator_class = class_id = re.sub(r'\d', '', self.indicator_id)
+        self.class_id = class_id = re.sub(r'\d', '', self.indicator_id)
+        self.class_name = self.indicator_library['IndicatorClass']
         
         self.classes_nr = self.indicator_library['ClassesNr']
         self.classes_labels = self.indicator_library['ClassesLabel'].split("; ")
@@ -261,7 +260,7 @@ class Indicator:
         
         self._selected = False
         
-        self.setup_widget = self.create_indicators_setup_widgets()
+        self.setup_layout = self.create_indicators_setup_widgets()
         self.scenarios_view = {}
         
         self.setup_model = QSqlTableModel(db = self.answers_db)
@@ -276,30 +275,20 @@ class Indicator:
         if self._selected != value:
             self._selected = value
             #self.selection_state_changed.emit(value)
-            
-            existing_scenarios = M_OperateDatabases.getUniqueColumnValues(self.answers_db, "ScenarioSetup", "ScenarioID")
-            
+        
             if value == True:
-                print(f"{self.indicator_id} selected!")
-                                
-                self.setup_widget.show()
-                for scenario in existing_scenarios:
-                    self.scenarios_view[scenario].show()
-                
+                #print(f"{self.indicator_id} selected!")       
+                pass      
             else:
-                print(f"{self.indicator_id} deselected!")
-                
-                self.setup_widget.hide()
-                for scenario in existing_scenarios:
-                    self.scenarios_view[scenario].show()
+                #print(f"{self.indicator_id} deselected!")
+                pass 
+
         
     def create_indicators_setup_widgets(self):
-        
         indicator_widget = QWidget()
         indicator_widget.setObjectName(self.indicator_id)
         indicator_layout = QVBoxLayout(indicator_widget)
         indicator_layout.setContentsMargins(0, 0, 0, 0)
-        
         
         indicator_text = f'Methodology: {self.reference}'
         indicator_label = QLabel(indicator_text)
@@ -308,7 +297,6 @@ class Indicator:
         
         unit_layout = QHBoxLayout()
         indicator_layout.addLayout(unit_layout)
-
         
         if len(self.possible_units) > 1:
             unit_text = 'Select the data unit:'
@@ -352,7 +340,6 @@ class Indicator:
         return indicator_widget
 
     def set_scenario_widget(self, scenario_id):
-        
         scenario_model = QSqlTableModel(db = self.answers_db)
         scenario_model.setTable(self.indicator_id)
         scenario_model.setEditStrategy(QSqlTableModel.OnFieldChange)
@@ -365,7 +352,7 @@ class Indicator:
         self.scenarios_view[scenario_id].setColumnHidden(0, True)            
             
         return self.scenarios_view[scenario_id]
-
+         
     def set_selected_state(self, selected_indicators):
         if self.indicator_id in flatten_dict(selected_indicators):
             self._selected = True

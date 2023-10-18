@@ -16,7 +16,7 @@ from W_MainPage_V5 import Ui_MainWindow
 from W_SetupWindow_ui import Ui_HazardSetup
 from W_WelcomeWindow import Ui_WelcomeWindow
 from W_HazardB1 import Ui_SettingB1
-from M_PerformanceSetup import Ui_PerformanceSetup
+from M_PerformanceSetup_2 import Ui_PerformanceSetup
 from W_SetupWindow import Ui_SetupWindow
 
 import M_OperateDatabases
@@ -651,8 +651,11 @@ class MainWindow(QMainWindow):
             self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(ANSWERS_DB)
             for indicator_id, indicator in self.indicators_sv.items():
                 indicator.set_selected_state(self.selected_indicators)
-            
+                
             self.existing_scenario_ids = M_OperateDatabases.getUniqueColumnValues(ANSWERS_DB, "ScenarioSetup", "ScenarioID")
+            for scenario_id in self.existing_scenario_ids:
+                for indicator_id, indicator in self.indicators_sv.items():
+                    indicator.set_scenario_widget(scenario_id)
 
             # Populate the Performance_MainWidget with scenarios from ANSWERS_DB
             self.populate_scenario_pages()
@@ -675,7 +678,7 @@ class MainWindow(QMainWindow):
     #     self.setupwindow.show()
 
     def OpenSetupWindow(self):
-        ScenarioSetupWindow = Ui_PerformanceSetup(self.indicators, ANSWERS_DB)
+        ScenarioSetupWindow = Ui_PerformanceSetup(self.indicators['indicators_classes'], self.indicators_sv, ANSWERS_DB)
         ScenarioSetupWindow.setWindowModality(Qt.WindowModal)
         #ScenarioSetupWindow.setWindowFlags(self.ScenarioSetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
         ScenarioSetupWindow.windowClosed.connect(self.onSetupWindowClosed)

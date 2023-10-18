@@ -201,7 +201,7 @@ def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlD
         # Generate the SQL query to create the table with dynamic column names
         columns = []
         for index, label in enumerate(ClassesLabels):
-            columns.append(f"{label} REAL")
+            columns.append(f"[{label}] REAL")
             #columns.append(f"{label.replace(' ','')} REAL")
         
         columns_str = ", ".join(columns)

@@ -20,11 +20,10 @@ class IndicatorsSelection(QMainWindow):
     
     windowClosed = Signal()
     
-    def __init__(self, indicators_sv, indicators, answers_db):
+    def __init__(self, indicators_classes, indicators_sv, answers_db):
         super().__init__()
         self.indicators_sv = indicators_sv
-        
-        self.indicators = indicators
+        self.indicators_classes = indicators_classes
         self.answers_db = answers_db
 
         self.radio_button_groups = {}  # Dictionary to manage radio button groups for each class
@@ -40,12 +39,9 @@ class IndicatorsSelection(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-                      
-        indicators_classes = self.indicators['indicators_classes']
-        indicators_library = self.indicators['indicators_library']
-        
+                              
         # Create the UI elements and check if indicators are already selected               
-        for class_id, class_prop in indicators_classes.iterrows():
+        for class_id, class_prop in self.indicators_classes.iterrows():
             class_name = class_prop['IndicatorClassName']
             exclusive = class_prop['Exclusive']
             
@@ -74,36 +70,38 @@ class IndicatorsSelection(QMainWindow):
     
                 self.radio_button_groups[class_name] = button_group
             
-            for indicator_id, indicator_prop in indicators_library[indicators_library['IndicatorClass'] == class_name].iterrows():
-                indicator_name = indicator_prop['ShowName']
+            for indicator_id, indicator in self.indicators_sv.items():
+                if indicator.class_name == class_name:
+                
+                    indicator_name = indicator.show_name
 
-                if exclusive == 'YES':
-                    radiobutton = QRadioButton(text = indicator_name, parent = frame)
-                    radiobutton.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property          
-                    
-                    radiobutton.clicked.connect(self.handle_radio_clicked)
-                          
-                    radiobutton.toggled.connect(lambda checked, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, checked, class_id))
-                                                   
-                    button_group.addButton(radiobutton)
-                    frame_layout.addWidget(radiobutton)
+                    if exclusive == 'YES':
+                        radiobutton = QRadioButton(text = indicator_name, parent = frame)
+                        radiobutton.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property          
+                        
+                        radiobutton.clicked.connect(self.handle_radio_clicked)
+                            
+                        radiobutton.toggled.connect(lambda checked, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, checked, class_id))
+                                                    
+                        button_group.addButton(radiobutton)
+                        frame_layout.addWidget(radiobutton)
 
-                    # Check if the indicator is previously selected and set the radio button accordingly
-                    if indicator_id in self.selected_indicators[class_id]:
-                        radiobutton.setChecked(True)
-                    
-                else:
-                    checkbox = QCheckBox(text = indicator_name, parent = frame)
-                    checkbox.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property
-                    checkbox.stateChanged.connect(lambda state, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, state == 2, class_id))
+                        # Check if the indicator is previously selected and set the radio button accordingly
+                        if indicator_id in self.selected_indicators[class_id]:
+                            radiobutton.setChecked(True)
+                        
+                    else:
+                        checkbox = QCheckBox(text = indicator_name, parent = frame)
+                        checkbox.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property
+                        checkbox.stateChanged.connect(lambda state, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, state == 2, class_id))
 
-                    frame_layout.addWidget(checkbox)
-                    
-                    # Check if the indicator is previously selected and set the checkbox accordingly
-                    if indicator_id in self.selected_indicators[class_id]:
-                        checkbox.setChecked(True)       
-            
-            layout.addWidget(frame)                           
+                        frame_layout.addWidget(checkbox)
+                        
+                        # Check if the indicator is previously selected and set the checkbox accordingly
+                        if indicator_id in self.selected_indicators[class_id]:
+                            checkbox.setChecked(True)       
+                
+                layout.addWidget(frame)                           
 
     def handle_radio_clicked(self):
         sender = self.sender()
@@ -118,8 +116,6 @@ class IndicatorsSelection(QMainWindow):
         if selected:
             if indicator_id not in self.selected_indicators[class_id]:
                 self.selected_indicators[class_id].append(indicator_id)
-            
-
         else:
             if indicator_id in self.selected_indicators[class_id]:
                 self.selected_indicators[class_id].remove(indicator_id)
@@ -192,9 +188,7 @@ def load_selected_indicators(AnswersDatabase: QSqlDatabase):
         selected_indicators[class_id].append(query.value(0))
 
     return selected_indicators
-
-
-            
+ 
 
 def flatten_dict(dict):
     flattened_list = [item for sublist in dict.values() for item in sublist]    
