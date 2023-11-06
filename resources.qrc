@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="icon">
+    <file>icons/icons8-settings.svg</file>
     <file>icons/left_arrow.png</file>
     <file>icons/REFUSS LOGO_50.ico</file>
     <file>icons/REFUSS LOGO.ico</file>

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QCheckBox, QStackedWidget, QListView,
                                 QComboBox, QTreeWidgetItem, QWidget, QInputDialog, QSpacerItem,
                                 QSizePolicy, QLabel, QMessageBox, QFrame, QFormLayout,QLineEdit,
-                                QPushButton)
+                                QPushButton, QLayout)
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (QStandardItemModel, QStandardItem)
@@ -158,82 +158,141 @@ CLASSES - SPECIAL ELEMENTS
 class DatabaseItem(QTreeWidgetItem):
     def __init__(self, db_row_id, column_name, parent=None):
         super(DatabaseItem, self).__init__(parent)
+
         self.db_row_id = db_row_id
         self.column_name = column_name
-        
-class ExpandableSimpleElement(QWidget):
-    formFieldTextChanged = Signal(str, str)  # Pass two strings: the label and the new text
-    removedElement = Signal(str)
-    changedLabel = Signal(str, str)
-    
+
+class NotExpandableSimpleElement(QWidget):
+
     def __init__(self, label_text = ""):
         super().__init__()
         self.expanded = True
         self.label_text = label_text
         
+        #self.setStyleSheet("border: 1px solid #BB0A21;") 
+               
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+
+        '''Create header of the expandable element'''
+        header_layout = QVBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+
+        # Create a horizontal layout for the header of the expandable element
+        header_labels_layout = QHBoxLayout()
+
+        # Create a label for the element's text label
+        label = QLabel(self.label_text)
+        label.setFont(MyFont(10, True))
+        label.setMargin(0)
+        
+
+        # Create a horizontal spacer to push self.label to the left
+        label_h_spacer = QSpacerItem(20, 10, QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        # Add the labels to the header_labels_layout
+        header_labels_layout.addWidget(label)
+        header_labels_layout.addItem(label_h_spacer)
+
+        # Add the header labels layout to the header_layout
+        header_layout.addLayout(header_labels_layout)
+
+        # Create a simple horizontal line and add to header_layout
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Plain)
+        header_layout.addWidget(line)
+
+        self.layout.addLayout(header_layout)
+        
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(4,0,4,0)
+        self.content_layout.setSpacing(4)
+        self.layout.addLayout(self.content_layout)          
+       
+class ExpandableSimpleElement(QFrame):
+
+    def __init__(self, label_text = ""):
+        super().__init__()
+        self.expanded = True
+        self.label_text = label_text
+        
+        #self.setStyleSheet("border: 1px solid #BB0A21;") 
+               
         self.setup_ui()
 
     def setup_ui(self):
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
-        # Create a frame for the header labels and a simple horizontal line
-        header_frame = QFrame(self)
-        header_layout = QVBoxLayout(header_frame)
+        '''Create header of the expandable element'''
+        header_layout = QVBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(0)
 
-        # Create a horizontal layout for the header labels (self.label, self.edit_label, self.expand_label)
+        # Create a horizontal layout for the header of the expandable element
         header_labels_layout = QHBoxLayout()
 
-        # Create a label for the element's text (self.label_text)
-        self.label = QLabel(self.label_text, self)
-        self.label.setFont(MyFont(10, True))
+        # Create a label for the element's text label
+        label = QLabel(self.label_text)
+        label.setFont(MyFont(10, True))
 
         # Create a horizontal spacer to push self.label to the left
-        label_spacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        label_h_spacer = QSpacerItem(20, 10, QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         # Create a label for the expand/collapse arrow (self.expand_label)
-        self.expand_label = QLabel("▲", self)  # Use ▼ for down arrow and ▲ for up arrow
+        self.expand_label = QLabel("▲")  # Use ▼ for down arrow and ▲ for up arrow
         self.expand_label.setAlignment(Qt.AlignCenter)
         self.expand_label.setCursor(Qt.PointingHandCursor)
         self.expand_label.mousePressEvent = self.toggle_properties
 
         # Add the labels to the header_labels_layout
-        header_labels_layout.addWidget(self.label)
-        header_labels_layout.addItem(label_spacer)
+        header_labels_layout.addWidget(label)
+        header_labels_layout.addItem(label_h_spacer)
         header_labels_layout.addWidget(self.expand_label)
 
+        # Add the header labels layout to the header_layout
         header_layout.addLayout(header_labels_layout)
 
-        # Create a simple horizontal line
-        line = QFrame(self)
+        # Create a simple horizontal line and add to header_layout
+        line = QFrame()
         line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Plain)
         header_layout.addWidget(line)
 
-        self.layout.addWidget(header_frame)
-
-        # Create a widget for the expandable content (e.g., labels and input fields)
-        self.content_widget = QWidget(self)
-        self.content_layout = QFormLayout(self.content_widget)
-
-        self.content_layout.setVerticalSpacing(5)  # Adjust vertical spacing as needed
-        #self.content_widget.hide()
+        self.layout.addLayout(header_layout)
         
-        header_layout.addWidget(self.content_widget)
+        '''Create content layout of the expandable element'''
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(4,0,4,0)
+        self.layout.addLayout(self.content_layout)
 
-        # Create a layout for the delete button and spacer
-        header_button_layout = QHBoxLayout()
-        header_button_layout.addItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-
-        header_layout.addLayout(header_button_layout)
-
-        #self.layout.addWidget(header_frame)
+        # self.layout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
             
     def toggle_properties(self, event):
         self.expanded = not self.expanded
-        self.content_widget.setVisible(self.expanded)
+        #self.content_widget.setVisible(self.expanded)
         if self.expanded:
             self.expand_label.setText("▲")  # Change to up arrow when expanded
         else:
             self.expand_label.setText("▼")  # Change to down arrow when collapsed
+
+        for i in range(self.content_layout.count()):
+            item = self.content_layout.itemAt(i)
+            if isinstance(item.layout(), QVBoxLayout) or isinstance(item.layout(), QHBoxLayout):
+                layout = item.layout()
+                for j in range(layout.count()):
+                    widget = layout.itemAt(j).widget()
+                    if widget:
+                        widget.setVisible(self.expanded)
+            elif isinstance(item.widget(), QWidget):
+                item.widget().setVisible(self.expanded)
+                        

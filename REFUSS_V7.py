@@ -7,17 +7,18 @@ from PySide6.QtWidgets import (QMainWindow, QApplication, QPushButton, QTreeWidg
                             QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit, QComboBox,
                             QScrollArea, QSizePolicy, QSpacerItem, QFileDialog, QTableView, QDialogButtonBox,
                             QMessageBox, QDialog, QStyledItemDelegate, QHeaderView, QMenu, QAbstractItemView,
-                            QAbstractScrollArea, QStyleOptionButton, QStyle, QTableWidgetItem)
-from PySide6.QtCore import Qt, Signal, QEvent
+                            QAbstractScrollArea, QStyleOptionButton, QStyle, QTableWidgetItem, QFrame, QHBoxLayout, QLayout)
+from PySide6.QtCore import Qt, Signal, QEvent, QAbstractTableModel, QModelIndex
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QStandardItemModel, QValidator, QIntValidator, QAction
 
 from W_MainPage_V5 import Ui_MainWindow
 from W_SetupWindow_ui import Ui_HazardSetup
 from W_WelcomeWindow import Ui_WelcomeWindow
-from W_HazardB1 import Ui_SettingB1
-from M_PerformanceSetup import Ui_PerformanceSetup
+from W_B1_Setup import Ui_SettingB1
+from M_PerformanceSetup_2 import Ui_PerformanceSetup
 from W_SetupWindow import Ui_SetupWindow
+from M_WeightSetup import Ui_WeightSetup
 
 import M_OperateDatabases
 import M_Operate_GUI_Elements
@@ -25,42 +26,12 @@ import M_PlotGraphs
 import M_ResilienceCalculus
 import M_IndicatorsSelection
 import M_HazardClasses
+
 from M_Fonts import MyFont
 
 from functools import partial
 
 import atexit
-
-class B1ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.options = ["Residential", "Commercial", "Industrial"]
-
-    def createEditor(self, parent, option, index):
-        if index.column() == 2:  # Only create an editor for the third column
-            editor = QComboBox(parent)
-            editor.addItems(self.options)
-            return editor
-        return super().createEditor(parent, option, index)
-
-    def setEditorData(self, editor, index):
-        if index.column() == 2:  # Set the current index of the ComboBox based on the item data
-            current_data = index.data(Qt.DisplayRole)
-            if current_data in self.options:
-                editor.setCurrentIndex(self.options.index(current_data))
-        else:
-            super().setEditorData(editor, index)
-
-    def setModelData(self, editor, model, index):
-        if index.column() == 2:  # Set the item data based on the current index of the ComboBox
-            model.setData(index, editor.currentText(), Qt.EditRole)
-        else:
-            super().setModelData(editor, model, index)
-
-    # def sizeHint(self, option, index):
-    #     if index.column() == 2:  # Adjust the size hint for the ComboBox in the third column
-    #         return QSize(100, 30)
-    #     return super().sizeHint(option, index)
 
 class HazardSetupDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -68,15 +39,15 @@ class HazardSetupDelegate(QStyledItemDelegate):
 
     def createEditor(self, parent, option, index):
 
-        #set the spacial case for the "Buildings Damage (B1)" hazard
-        if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
-            # Use the custom button-like delegate for column 1 when the text in column 0 is "Buildings Damage (B1)"
-            editor = QPushButton("Setup", parent)
-            editor.clicked.connect(self.openB1SetupWindow)  # Connect the button click to a custom slot
-            return editor
+        # #set the spacial case for the "Buildings Damage (B1)" hazard
+        # if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
+        #     # Use the custom button-like delegate for column 1 when the text in column 0 is "Buildings Damage (B1)"
+        #     editor = QPushButton("Setup", parent)
+        #     editor.clicked.connect(self.openB1SetupWindow)  # Connect the button click to a custom slot
+        #     return editor
 
         # Create a QComboBox editor for column 0 and 1 and its options
-        elif index.column() in (0,1):
+        if index.column() in (0,1):
             editor = QComboBox(parent)
             if index.column() == 0:
                 editor.addItems(M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "HazardLibrary")["ShowName"])
@@ -108,12 +79,156 @@ class HazardSetupDelegate(QStyledItemDelegate):
 
         return super().editorEvent(event, model, option, index)
 
-    def openB1SetupWindow(self):
-        self.B1SetupWindow = B1SettingWindow()
-        #self.B1SetupWindow.windowClosed.connect(self.onSetupWindowClosed)
-        self.B1SetupWindow.setWindowModality(Qt.WindowModal)
-        self.B1SetupWindow.setWindowFlags(self.B1SetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
-        self.B1SetupWindow.show()
+    # def openB1SetupWindow(self):
+    #     self.B1SetupWindow = B1SettingWindow()
+    #     #self.B1SetupWindow.windowClosed.connect(self.onSetupWindowClosed)
+    #     self.B1SetupWindow.setWindowModality(Qt.WindowModal)
+    #     self.B1SetupWindow.setWindowFlags(self.B1SetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
+    #     self.B1SetupWindow.show()
+
+class GeneralizedIndicatorModel(QAbstractTableModel):
+    def __init__(self, database, indicators, scenario_id, column_names, row_names=None):
+        super(GeneralizedIndicatorModel, self).__init__()
+        self.database = database
+        self.indicators = indicators  # List of indicator IDs
+        self.scenario_id = scenario_id
+        self.column_names = column_names
+        self.row_names = row_names if row_names else indicators
+        self.dirty = False
+        self.data_dict = self.fetch_data()  # {(indicator_id, scenario_id): {column_name: value}}
+        #self.fetch_data()
+        
+    def fetch_data(self):
+        data_dict = {}
+        for indicator_id in self.indicators:
+            table_name = indicator_id  # Use IndicatorID as the table name
+            query = QSqlQuery(self.database)
+            query.prepare(f"SELECT * FROM {table_name} WHERE ScenarioID = :scenario_id")
+            query.bindValue(":scenario_id", self.scenario_id)
+            if query.exec():
+                while query.next():
+                    record = query.record()
+                    for column_name in self.column_names:
+                        value = record.value(column_name)
+                        data_dict[(indicator_id, self.scenario_id)] = data_dict.get((indicator_id, self.scenario_id), {})
+                        data_dict[(indicator_id, self.scenario_id)][column_name] = value
+            else:
+                print("Query execution failed:", query.lastError().text())
+                error = self.database.lastError().text()
+                print(f'Database error details: {error}')
+        return data_dict
+
+        
+    def flags(self, index):
+        flags = super().flags(index)
+        flags |= Qt.ItemIsEditable  # Add the Qt.ItemIsEditable flag
+        return flags
+
+    def rowCount(self, parent):
+        return len(self.indicators)
+
+    def columnCount(self, parent):
+        return len(self.column_names)
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole or role == Qt.EditRole:
+            indicator_id = self.indicators[index.row()]
+            column_name = self.column_names[index.column()]
+            value = self.data_dict.get((indicator_id, self.scenario_id), {}).get(column_name, "")
+            return value if role == Qt.DisplayRole else str(value)
+        return None
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Vertical:
+                return str(self.row_names[section])
+            elif orientation == Qt.Horizontal:
+                return str(self.column_names[section])
+        return None
+
+    def setData(self, index, value, role):
+        if role == Qt.EditRole:
+            indicator_id = self.indicators[index.row()]
+            column_name = self.column_names[index.column()]
+            
+            key = (indicator_id, self.scenario_id)
+            
+            if key not in self.data_dict.keys():
+                self.data_dict[key] = {}  # Create a dictionary for the indicator/scenario pair
+                
+                
+            table_name = indicator_id  # Use IndicatorID as the table name
+            # Start the transaction
+            self.database.transaction()
+            
+            query = QSqlQuery(self.database)
+            query.prepare(f"UPDATE {table_name} SET `{column_name}` = :value WHERE ScenarioID = :scenario_id")
+            query.bindValue(":value", float(value))
+            query.bindValue(":scenario_id", self.scenario_id)
+            
+            if not query.exec():
+                print("Query execution failed:", query.lastError().text())
+                # Handle update failure
+                self.database.rollback()
+                return False
+
+            if not self.database.commit():
+                print(f'Error on database commitment for table {table_name}')
+                error = self.database.lastError().text()
+                print(f'Database error details: {error}')
+                return False
+
+            key = (indicator_id, self.scenario_id)
+
+            if key not in self.data_dict.keys():
+                self.data_dict[key] = {}
+
+            self.data_dict[key][column_name] = value
+            self.dirty = True
+            self.dataChanged.emit(index, index)
+            return True
+        return False
+
+    def isDirty(self):
+        return self.dirty
+
+    def commit(self):
+        if self.dirty:
+            if self.database.open():
+                self.database.transaction()
+
+                try:
+                    for row in range(self.rowCount()):
+                        for col in range(1, self.columnCount()):
+                            indicator_id = self.indicators[row]
+                            column_name = self.column_names[col]
+                            new_value = self.data_dict.get((indicator_id, self.scenario_id), {}).get(column_name)
+                            table_name = indicator_id
+
+                            query = QSqlQuery(self.database)
+                            query.prepare(
+                                f"""
+                                UPDATE {table_name}
+                                SET Value = ?
+                                WHERE ScenarioID = ? AND ColumnName = ?
+                                """
+                            )
+                            query.addBindValue(new_value)
+                            query.addBindValue(self.scenario_id)
+                            query.addBindValue(column_name)
+
+                            if not query.exec():
+                                self.database.rollback()
+                                return False
+
+                    if not self.database.commit():
+                        print(f'Error on database commitment for table {table_name}')
+                        return False
+                    else:
+                        self.dirty = False
+                except:
+                    self.database.rollback()
+                    raise
 
 # Custom Delegate for Button-like Appearance
 class ButtonLikeDelegate(QStyledItemDelegate):
@@ -393,126 +508,6 @@ class SetupWindow(QMainWindow):
         #self.closeSetupWindow()
         pass
 
-class B1SettingWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("B1 Setting Window")
-        self.ui = Ui_SettingB1()
-        self.ui.setupUi(self)
-
-        self.verifyDatabaseTable()
-
-        # Create models for tables
-        self.createTable_UserUses()
-
-    def createTable_UserUses(self):
-        # Ensure that the database connection is open before creating the model
-        if not ANSWERS_DB.isOpen():
-            QMessageBox.critical(self, "Database Error", "ANSWERS_DB is not open.")
-            return
-
-        # Define and set the model for UserUses_Table
-        self.user_uses_model = QSqlTableModel(db = ANSWERS_DB)
-        self.user_uses_model.setTable("B1Setup")
-        self.user_uses_model.setEditStrategy(QSqlTableModel.OnFieldChange)
-
-       # Fetch the data from the table
-        if not self.user_uses_model.select():
-            QMessageBox.critical(self, "Database Error", "Failed to fetch data from the table B1Setup.")
-            return
-
-        self.user_uses_model.setHeaderData(0, Qt.Horizontal, "Custom building use")
-        self.user_uses_model.setHeaderData(1, Qt.Horizontal, "Total size")
-        self.user_uses_model.setHeaderData(2, Qt.Horizontal, "Methodology corresponding use")
-
-        self.ui.UserUses_Table.setModel(self.user_uses_model)
-        self.ui.UserUses_Table.resizeColumnsToContents()
-        self.ui.UserUses_Table.setEditTriggers(QTableView.AllEditTriggers)
-
-        # Set the delegate for the third column to use ComboBox
-        self.ui.UserUses_Table.setItemDelegate(B1ComboBoxDelegate(self))
-        self.ui.UserUses_Table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-
-        # Create context menu
-        self.ui.UserUses_Table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.ui.UserUses_Table.customContextMenuRequested.connect(self.showContextMenu)
-
-        self.ui.Close_Button.clicked.connect(self.closeB1SettingWindow)
-
-    def closeB1SettingWindow(self):
-        confirm_dialog = QMessageBox.question(self, "Confirmation", "Do you want to close the window?", QMessageBox.Yes | QMessageBox.No)
-        if confirm_dialog == QMessageBox.Yes:
-            self.user_uses_model.select()
-            self.close()
-
-    def showContextMenu(self, pos):
-        table = self.sender()  # Identify the table that triggered the event
-
-        if table == self.ui.UserUses_Table:
-            model = self.user_uses_model
-            add_label = "Add New Use"
-            remove_label = "Remove Current Use"
-        else:
-            return
-
-        global_pos = table.viewport().mapToGlobal(pos)
-        self.clicked_index = table.indexAt(pos)
-
-        context_menu = QMenu(self)
-        add_new_use_action = QAction(add_label, self)
-        remove_current_use_action = QAction(remove_label, self)
-
-        context_menu.addAction(add_new_use_action)
-        context_menu.addAction(remove_current_use_action)
-
-        # Connect context menu actions to slots
-        add_new_use_action.triggered.connect(lambda: self.addNewRow())
-        remove_current_use_action.triggered.connect(lambda: self.removeCurrentRow())
-
-        context_menu.exec(global_pos)
-
-    def addNewRow(self):
-        # Add a new row to the table
-        row = self.user_uses_model.rowCount()
-
-        record = self.user_uses_model.record()
-        record.setValue("CostumUse", "Edit here...")
-
-        #self.user_uses_model.insertRow(row)
-        self.user_uses_model.insertRecord(row, record)
-
-        #self.user_uses_model.submitAll()
-
-        self.ui.UserUses_Table.reset()
-
-    def removeCurrentRow(self):
-        # Remove the current row from the table
-        current_row = self.clicked_index.row()
-        if current_row >= 0:
-            self.user_uses_model.removeRow(current_row)
-        self.user_uses_model.select()
-
-    def verifyDatabaseTable(self):
-        """criar tabela na database se não existir B1HazardSetup que vai ter apenas uma linha com as colunas:
-            CustomUses : lista separada por ; com os tipos de edificio introduzidos pelo utilizador
-            Residential, Commercial, Industrial (onde serão colocados os tipos definidos pelo utilizador corresponde)
-            WaterDepths: lista separada por ; com os valores de profundidade de agua introduzidos pelo utilizador
-        """
-        if not ANSWERS_DB.isOpen():
-            QMessageBox.critical(None, "Database Error", "ANSWERS_DB is not open.")
-        else:
-            # Criar a tabela se ela não existir
-            query = QSqlQuery(ANSWERS_DB)
-            if not query.exec("CREATE TABLE IF NOT EXISTS B1Setup ("
-                    "CostumUse TEXT, "
-                    "TotalSize NUMERIC, "
-                    "MethodologyClass TEXT)"
-                ):
-                print(f"Failed to create table B1Settings. {query.lastError().text()}")
-
-# class TableViewUpdater(QObject):
-#      updateTableViews = Signal()
-
 class MainWindow(QMainWindow):
     def __init__(self, Status):
         super(MainWindow, self).__init__()
@@ -551,17 +546,17 @@ class MainWindow(QMainWindow):
         # Get tables' content from REFUSS_DB
         refuss_contents = M_OperateDatabases.getREFUSSDatabase(REFUSS_DB)
         self.dimensions = refuss_contents[0]
-        self.objectives = refuss_contents[1]
-        self.criteria = refuss_contents[2]
-        self.metrics = refuss_contents[3]
-        self.metric_options = refuss_contents[4]
+        self.objectives = refuss_contents[1].set_index("ObjectiveID")
+        self.criteria = refuss_contents[2].set_index("CriteriaID")
+        self.metrics = refuss_contents[3].set_index("MetricID")
+        self.metric_options = refuss_contents[4].set_index("MetricID")
         self.indicators = {'indicators_classes': refuss_contents[5].set_index("IndicatorClassID"),
                            'indicators_library': refuss_contents[6].set_index("IndicatorID")}
 
         # Verify answers database
         M_OperateDatabases.verifyAnswersDatabase(ANSWERS_DB)
         M_OperateDatabases.setConsequencesTables(REFUSS_DB, ANSWERS_DB)
-
+        
         """
         Set Tree Widgets
         """
@@ -598,32 +593,37 @@ class MainWindow(QMainWindow):
 
         """
         Address Status (New or Old)
+        """      
+        if Status == "New":       
+            # If new anaylisis, makes sure to delete its existing answers and save over existing database
+            M_OperateDatabases.FillNewAnswersDatabase(ANSWERS_DB, self.metrics)
+            M_OperateDatabases.FillNewWeightsDatabase(REFUSS_DB, ANSWERS_DB)
+            M_OperateDatabases.createIndicatorsSetup(REFUSS_DB, ANSWERS_DB)
+            
+        if Status == "Old":
+            # Load available functional answers from ANSWERS_DB into the GUI
+            load_FunctionalAnswers(self.ui.Functional_MainWidget)
+
         """
-
-
+        Initialize Performance/Indicators related global variables
+        """
         # The scenario pages layout will have a widget for all the possible Classes and Indicators
         # If the Class has a selected indicator the respective Widget of the class is shown,
             # otherwise it is hidden
         # If the indicator within a given class is selected, the respective widget is shown,
             # otherwise it is hidden
         # When calculating Performance Resilience, only selceted indicators must be considered
-
-        self.indicators_sv = {}
-        for indicator_id, _ in self.indicators['indicators_library'].iterrows():
-            self.indicators_sv[indicator_id] = M_HazardClasses.Indicator(indicator_id, self.indicators, ANSWERS_DB)
-            #self.indicators_sv[indicator_id].selection_state_changed.connect(self.handle_indicator_selection_change)
+        
+        self.update_performance_dataframes()
+        
+        # Initialize dictionary containing as keys the IndicatorsClasses from the ConsequencesLibrary
+            # and as values the selected IndicatorsIDs of each class (generaly, classes only allow 1 indicator)
+            # Updated when the IndicatorSelection window is closed      
+        self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(self.IndicatorsSetup)
         
         # Initialize list to save the existing scanerio IDs
-        # Updated when the SETUP window is closed
-        self.existing_scenario_ids = []
-
-        # initialize dictionary containing as keys the IndicatorsClasses from the ConsequencesLibrary
-            # and as values the selected IndicatorsIDs of each class (generaly, classes only allow 1 indicator)
-        # For each IndicatorsID there is a different methodology, widget and table.
-        # Updated when the SETUP window is closed
-        # Verify if you can associate the indicators list in SetupWindow directly
-            # with the database where selcted indicators are saved
-        self.selected_indicators = {}
+            # Updated when the SETUP window is closed
+        self.existing_scenarios = self.ScenarioSetup.index.tolist()
 
         # Initialize dictionary containg as keys the scenarioIDs
             # and as values a dict containing the IndicatorIDs as keys and
@@ -639,85 +639,58 @@ class MainWindow(QMainWindow):
         # Created when initializing the GUI and updated when selected_indicators changes
             # by showing/hiding the widgets of the selected/deselected indicators
         self.scenario_pages = {}
+        
+        # Functional Dimension buttons
+        self.ui.WeightsSU_btn.clicked.connect(self.OpenWeightsWindow)
+        
+        """
+        Set Performance/Indicators GUI elements
+        """
 
-        if Status == "New":
-            # If new anaylisis, makes sure to delete its existing answers and save over existing database
-            M_OperateDatabases.FillNewAnswersDatabase(ANSWERS_DB, self.metrics)
-        if Status == "Old":
-            # Load available functional answers from ANSWERS_DB into the GUI
-            load_FunctionalAnswers(self.ui.Functional_MainWidget)
-            
-            # Get Hazards list from HazardSetup table of ANSWERS_DB
-            self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(ANSWERS_DB)
-            for indicator_id, indicator in self.indicators_sv.items():
-                indicator.set_selected_state(self.selected_indicators)
-            
-            self.existing_scenario_ids = M_OperateDatabases.getUniqueColumnValues(ANSWERS_DB, "ScenarioSetup", "ScenarioID")
+        # Populate the Performance_MainWidget with scenarios from ANSWERS_DB
+        self.populate_scenario_pages()
 
-            # Populate the Performance_MainWidget with scenarios from ANSWERS_DB
-            self.populate_scenario_pages()
-
-            # Load Performance Tables from ANSWERS_DB into the GUI
-            #M_Operate_GUI_Elements.updatePerformanceTablesViews(self.PerformanceModels)
-
-            # Load Hazard Tables from ANSWERS_DB into the GUI
-            #updateHazardTableViews(self.ui.Performance_MainWidget)
-
-        # Performance Dimension buttons
-        # self.ui.HazardSU_btn.clicked.connect(partial(self.OpenSetupWindow, "HazardSetup"))
+        # Performance Dimension button
         self.ui.ScenarioSU_btn.clicked.connect(self.OpenSetupWindow)
 
-    # def OpenSetupWindow(self, SetupTable):
-    #     self.setupwindow = SetupWindow(SetupTable)
-    #     self.setupwindow.windowClosed.connect(self.onSetupWindowClosed)
-    #     #self.setupwindow.setWindowModality(Qt.WindowModal)
-    #     #self.setupwindow.setWindowFlags(self.setupwindow.windowFlags() | Qt.WindowStaysOnTopHint)
-    #     self.setupwindow.show()
-
+    def update_performance_dataframes(self):
+        self.IndicatorsLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "IndicatorsLibrary")
+        self.IndicatorsLibrary.set_index("IndicatorID", inplace=True)
+        
+        self.IndicatorsClassesLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "IndicatorsClassesLibrary")
+        self.IndicatorsClassesLibrary.set_index("IndicatorClassID", inplace=True)
+        
+        self.ScenarioSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioSetup")
+        self.ScenarioSetup.set_index("ScenarioID", inplace=True)
+        
+        self.IndicatorsSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "IndicatorsSetup")
+        self.IndicatorsSetup.set_index("IndicatorID", inplace=True)
+        
+        self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(self.IndicatorsSetup)        
+        
     def OpenSetupWindow(self):
-        ScenarioSetupWindow = Ui_PerformanceSetup(self.indicators, ANSWERS_DB)
-        ScenarioSetupWindow.setWindowModality(Qt.WindowModal)
-        #ScenarioSetupWindow.setWindowFlags(self.ScenarioSetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
-        ScenarioSetupWindow.windowClosed.connect(self.onSetupWindowClosed)
-        ScenarioSetupWindow.show()
-        self.selected_indicators = ScenarioSetupWindow.selected_indicators
+        self.ScenarioSetupWindow = Ui_PerformanceSetup(self.IndicatorsClassesLibrary,
+                                                  self.IndicatorsLibrary,
+                                                  self.ScenarioSetup,
+                                                  self.IndicatorsSetup,
+                                                  ANSWERS_DB)
+        self.ScenarioSetupWindow.setWindowModality(Qt.WindowModal)
+        self.ScenarioSetupWindow.setWindowFlags(self.ScenarioSetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
+        self.ScenarioSetupWindow.windowClosed.connect(self.onSetupWindowClosed)
+        self.ScenarioSetupWindow.show()
+
+    def OpenWeightsWindow(self):
+        self.WeightsSetupWindow = Ui_WeightSetup(ANSWERS_DB)
+        self.WeightsSetupWindow.setWindowModality(Qt.WindowModal)
+        self.WeightsSetupWindow.setWindowFlags(self.WeightsSetupWindow.windowFlags() | Qt.WindowStaysOnTopHint)
+        #WeightsSetupWindow.windowClosed.connect(self.onSetupWindowClosed)
+        self.WeightsSetupWindow.show()
 
     def onSetupWindowClosed(self):
+        self.update_performance_dataframes() #Ensures that the dataframes have the modifications made on the databases
         self.populate_dimension_tree(self.ui.Performance_list, 2)
-
-
-        #DEVIA SER:
-        # uma função para criar/desenhar uma página padrão de cenário
-        # outra função para fazer load inicial dos cenários existentes e páginas respetivas
-        # outra função que verifica se foram criados/modificados novos cenários ou indicadores
-        # se foi apagao um cenário: eliminar a respetiva página
-        # se foi modificado o nome: mudar o nome da respetiva página e da label no widget da página
-        # se foi criado um novo cenário: adicionar a respetiva página
-
-
-        # na função populate_scenario_pages():
-        # criar e adicionar um widget por cada indicator ID com label (IndicatorClass + ShowName)
-        # criar e adicionar um modelo para o indicatorID filtrado com o ScenarioID e associar à respetiva tabela
-        # se o indicador está na lista de indicadores selecionados, mostrar o respetivo widget e adicionar o indicador à lista de indicadores selecionados
-        # se o indicador não está na lista de indicadores selecionados, esconder o respetivo widget
-
-        #AQUI:
-        # criar função self.update_scenario_pages()
-            # fazer loop pelas páginas e fazer corresponder o qlabel do nome do cenário ao respetivo id para atualizar o nome
-            #1.  atualizar os nomes das páginas do qstackedwidget self.ui.Performance_MainWidget
-
-            #2. ler as tabelas ScenarioSetup e HazardSetup
-            #   Tens de criar antes uma lista que tenha os IndicatorID dos indicators selecionados no momento (neste caso os que estarão antes)
-            #   Tens de criar antes um dicionario que contém o ScenarioID como chave e que contem como valor um dicionario que contém como chave o IndicatorID e como valor o respetivo Widget
-                # se um hazard existente foi apagado, esconder o respetivo widget e remover o indicador da lista (a ideia é deixar o modelo e o indicador operacionais, e não perder os dados da tabela)
-                    # ter em atenção para nos plots e cálculos apenas considerar os indicadores selecionados
-                # se um novo hazard foi selecionado, mostrar o respetivo widget e adicionar o indicador da lista
-
-
         self.populate_scenario_pages()
-        M_Operate_GUI_Elements.updatePerformanceTablesViews(self.PerformanceModels)
-        updateHazardTableViews(self.ui.Performance_MainWidget)
-
+        
     def populate_with_objective_pages(self):
         """
         Populates the main widgets with objective pages based on the objectives retrived from the REFUSS_DB.
@@ -725,8 +698,7 @@ class MainWindow(QMainWindow):
         """
 
         # Iterate over objectives
-        for index, objective in self.objectives.iterrows():
-            objective_id = objective["ObjectiveID"]
+        for objective_id, objective in self.objectives.iterrows():
             objective_name = objective["ObjectiveName"]
             objective_description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."  # Replace with actual description
 
@@ -770,17 +742,16 @@ class MainWindow(QMainWindow):
 
         criteria_sorted = self.criteria.sort_values(by = "CriteriaID", ascending = True)
 
-        for index, criterion in criteria_sorted.iterrows():
-            criterion_id = criterion["CriteriaID"]
+        for criteriaID, criterion in criteria_sorted.iterrows():
             criterion_name = criterion["CriteriaName"]
-            criterion_metrics = self.metrics[self.metrics['CriteriaID'] == criterion_id]
+            criterion_metrics = self.metrics[self.metrics['CriteriaID'] == criteriaID]
 
             #Get the dimension based on the first character of the criterion_id
-            if criterion_id.startswith('1'):
+            if criteriaID.startswith('1'):
                 Dimension = "F"
 
                 #Generate the criterion label and assign the font and properties of the label
-                Criterion_id_label = f"{Dimension}{criterion_id[2:]}"
+                Criterion_id_label = f"{Dimension}{criteriaID[2:]}"
                 Criterion_label = QLabel(f"Criterion {Criterion_id_label}: {criterion_name}")
                 Criterion_label.setFont(MyFont(12, True))
                 Criterion_label.setWordWrap(True)  # Enable word wrapping
@@ -810,12 +781,11 @@ class MainWindow(QMainWindow):
                 # Populate the scroll layout with the metric "normal" blocks
                 criterion_metrics_sorted = criterion_metrics.sort_values(by = "MetricID", ascending = True)
 
-                for index, metric in criterion_metrics_sorted.iterrows():
-                    metric_id = metric["MetricID"]
+                for metric_id, metric in criterion_metrics_sorted.iterrows():
                     metric_name = metric["MetricName"]
                     metric_question = metric["MetricQuestion"]
                     answer_type = metric["Answer_Type"]
-                    answer_options = self.metric_options[self.metric_options["MetricID"] == metric_id]
+                    answer_options = self.metric_options.loc[metric_id]
 
                     #add metric block to respective layout
                     if metric_id[0] == '1':
@@ -839,29 +809,24 @@ class MainWindow(QMainWindow):
                 layout.setStretch(1,20)
 
                 # Set the property for the page
-                page.setProperty("pageName", criterion_id)
+                page.setProperty("pageName", criteriaID)
 
                 self.ui.Functional_MainWidget.addWidget(page)
             else:
                 Dimension = "P"
 
     def populate_scenario_pages(self):
+        M_Operate_GUI_Elements.CleanStackedWidget(self.ui.Performance_MainWidget)       #LIMPAR PAGES EXISTENTES
 
-        ScenarioSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioSetup")
-        ScenarioSetup = ScenarioSetup.set_index("ScenarioID")
-
-        IndicatorsSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "IndicatorsSetup")
-        IndicatorsSetup = IndicatorsSetup.set_index("IndicatorID")
-
-        for scenario_id, scenario_setting in ScenarioSetup.iterrows():
-
+        for scenario_id, scenario_setting in self.ScenarioSetup.iterrows():
             self.scenario_models[scenario_id] = {}
 
             # Create the main widget
             page = QWidget()
-
             #Create a QVBoxLayout for the main widget
             page_layout = QVBoxLayout(page)
+            #page.setStyleSheet("border: 1px solid #000;") 
+            
             page_layout.setContentsMargins(0, 0, 0, 0)
             page_layout.setSpacing(0)  # Set the spacing to 0 or a smaller value
 
@@ -879,63 +844,109 @@ class MainWindow(QMainWindow):
             scroll_area.setWidgetResizable(True)  # Allow the scroll area to resize its widget -> texto não corta
             scroll_area.setStyleSheet("QScrollArea { border: none; }")
             scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-            scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
             # ADD LABEL COM O SCENARIO_NAME
             scenario_name = scenario_setting["ScenarioName"]
-            scenario_label = QLabel(f"{scenario_name}")
+            scenario_label = QLabel(f"Scenario: {scenario_name}")
             scenario_label.setFont(MyFont(12, True))
 
             page_layout.addWidget(scenario_label)
             page_layout.addWidget(scroll_area)
 
-            for class_id, class_prop in self.indicators['indicators_classes'].iterrows():
-                class_widget = M_Operate_GUI_Elements.ExpandableSimpleElement(f"{class_prop['IndicatorClassName']}")
-                class_widget.setObjectName(f"class_{class_id}")
+            for class_id, class_prop in self.IndicatorsClassesLibrary.iterrows():
+                if class_id in self.selected_indicators.keys():
+                    class_name = class_prop[ 'IndicatorClassName']
+                    class_widget = M_Operate_GUI_Elements.NotExpandableSimpleElement(f"{class_name}")
+                    class_widget.setObjectName(f"class_{class_id}")
 
-                scroll_layout.addWidget(class_widget)
-
-                for indicator_id, indicator_prop in self.indicators['indicators_library'].iterrows():
+                    scroll_layout.addWidget(class_widget) 
                     
-                    model = QSqlTableModel(db = ANSWERS_DB)
-                    model.setTable(indicator_id)
-                    model.setEditStrategy(QSqlTableModel.OnFieldChange)
-                    model.setFilter(f"ScenarioID = '{scenario_id}'")
+                    class_excluxive = class_prop['Exclusive']
+                    if class_excluxive == 'NO':
+                        indicators_ids = self.selected_indicators[class_id]            
+            
+                        methodology = self.IndicatorsLibrary.at[indicators_ids[0], 'Reference']
+                        reference_label = QLabel(f"Methodology: {methodology}")
+                        
+                        selected_unit = self.IndicatorsSetup.at[indicators_ids[0], 'SelectedUnit']
+                        unit_label = QLabel(f"Data unit: {selected_unit}")
+                                                                    
+                        scenario_model = GeneralizedIndicatorModel(ANSWERS_DB, indicators_ids, scenario_id, ['Value'], ["Node surcharge", "Node flooding", "Surface Flooding"])
+            
+                        scenarios_view = QTableView()
+                        scenarios_view.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
+                        scenarios_view.setSelectionBehavior(QAbstractItemView.SelectItems)
+                        scenarios_view.setSelectionMode(QAbstractItemView.SingleSelection)
+                        scenarios_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+                        
+                        scenarios_view.setModel(scenario_model)
+                        scenarios_view.setObjectName(f"{class_id}")
+                        scenarios_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-                    # Carrega os dados da tabela com base no filtro
-                    model.select()
-                    # Associa o modelo a um nome específico para acessá-lo posteriormente
-                    self.scenario_models[scenario_id][indicator_id] = model
+                        
+                        scenarios_view.setStyleSheet(
+                            "QTableView { background-color: transparent; border: none; spacing: 0px; margin: 0px;}"
+                            "QHeaderView::section { background-color: #EDEDED; border: 1 px solid black; }"
+                            "QTableView::item { background-color: white; selection-background-color: white; color: black; }"
+                            )
 
-                    #PRINT MODEL
-                    # # Fetch the header data (column names)
-                    # header_data = [model.headerData(i, Qt.Horizontal) for i in range(model.columnCount())]
-                    # # Print the column names
-                    # print("Column Names:", header_data)
-                    # # Fetch and print the data
-                    # for row in range(model.rowCount()):
-                    #     row_data = [model.data(model.index(row, col), Qt.DisplayRole) for col in range(model.columnCount())]
-                    #     print(f"Row {row + 1}: {row_data}")
+                        # Connect to the dataChanged signal
+                        scenario_model.dataChanged.connect(lambda topLeft, bottomRight: scenarios_view.viewport().update())
+                        # Update the display when data changes
+                        scenarios_view.viewport().update()
+                        
+                        class_widget.content_layout.addWidget(reference_label)
+                        class_widget.content_layout.addWidget(unit_label)
+                        class_widget.content_layout.addWidget(scenarios_view)
+        
+                    else: 
+                        for indicator_id, indicator in self.IndicatorsSetup.iterrows():
+                            if indicator_id  in self.selected_indicators[class_id]:
+                                methodology = self.IndicatorsLibrary.at[indicator_id, 'Reference']
+                                reference_label = QLabel(f"Methodology: {methodology}")
+                                unit_label = QLabel(f"Data unit: {indicator['SelectedUnit']}")
 
-                    view = QTableView()
-                    view.setModel(model)
-                    view.setObjectName(f"{indicator_id}")
-                    view.setColumnHidden(0, True)
-               
+                                scenario_model = QSqlTableModel(db = ANSWERS_DB)
+                                scenario_model.setTable(indicator_id)
+                                scenario_model.setEditStrategy(QSqlTableModel.OnFieldChange)
+                                scenario_model.setFilter(f"ScenarioID = '{scenario_id}'")
+                                scenario_model.select()
 
-                    class_widget.content_layout.addWidget(view)
+                                # Associa o modelo a um nome específico para acessá-lo posteriormente
+                                self.scenario_models[scenario_id][indicator_id] = scenario_model
 
-                    if indicator_id not in self.selected_indicators[class_id]:
-                        view.hide()
+                                ''''PRINT MODEL
+                                # # Fetch the header data (column names)
+                                # header_data = [model.headerData(i, Qt.Horizontal) for i in range(model.columnCount())]
+                                # # Print the column names
+                                # print("Column Names:", header_data)
+                                # # Fetch and print the data
+                                # for row in range(model.rowCount()):
+                                #     row_data = [model.data(model.index(row, col), Qt.DisplayRole) for col in range(model.columnCount())]
+                                #     print(f"Row {row + 1}: {row_data}")
+                                '''
+                                
+                                scenarios_view = QTableView()
+                                scenarios_view.setModel(scenario_model)
+                                scenarios_view.setObjectName(f"{indicator_id}")
+                                scenarios_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
-                pass
+                                scenarios_view.setColumnHidden(0, True) # Hide first column (ScenarioID)
+                                scenarios_view.setStyleSheet(
+                                    "QTableView { background-color: transparent; border: none; spacing: 0px; margin: 0px;}"
+                                    "QHeaderView::section { background-color: #EDEDED; border: 1 px solid black; }"
+                                    "QTableView::item { background-color: white; selection-background-color: white; color: black; }")
+                                scenarios_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                                scenarios_view.resizeRowsToContents()
+                                scenarios_view.verticalHeader().setVisible(False)    # Hide the vertical header (row indexes)
+                                                        
+                                class_widget.content_layout.addWidget(reference_label)
+                                class_widget.content_layout.addWidget(unit_label)
+                                class_widget.content_layout.addWidget(scenarios_view)
 
-            scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Expanding))
-
+            scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
             page.setProperty("pageName", f"Scenario{scenario_id}")
-
             self.ui.Performance_MainWidget.addWidget(page)
-
             self.scenario_pages[scenario_id] = page
 
     def create_model(self, scenario_id, model_name, table_name, filter_condition):
@@ -994,19 +1005,18 @@ class MainWindow(QMainWindow):
 
         if dimension_id == 1:
             # Populate the tree widget with objectives and criteria
-            for _, objective in self.objectives[self.objectives["DimensionID"] == dimension_id].iterrows():
+            for objectiveID, objective in self.objectives[self.objectives["DimensionID"] == dimension_id].iterrows():
                 # Create an objective item with the objective name and description
                 objective_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']} - {objective['ObjectiveName']}"])
-                objective_ID = objective["ObjectiveID"]
-                objective_item.setData(0, Qt.UserRole, objective_ID)  # Store the ObjectiveID as data
+                objective_item.setData(0, Qt.UserRole, objectiveID)  # Store the ObjectiveID as data
                 objective_item.setFont(0, MyFont(9, True))
                 tree_widget.addTopLevelItem(objective_item)
 
 
-                for _, criterion in self.criteria[self.criteria["ObjectiveID"] == objective_ID].iterrows():
+                for criteriaID, criterion in self.criteria[self.criteria["ObjectiveID"] == objectiveID].iterrows():
                     # Create a criterion item with the criterion name and description
                     criterion_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']}.{criterion['CriteriaSubID']} - {criterion['CriteriaName']}"])
-                    criterion_item.setData(0, Qt.UserRole, criterion['CriteriaID'])  # Store the CriterionID as data
+                    criterion_item.setData(0, Qt.UserRole, criteriaID)  # Store the CriterionID as data
                     objective_item.addChild(criterion_item)
 
         elif dimension_id == 2:
@@ -1097,7 +1107,7 @@ class MainWindow(QMainWindow):
 
                         M_OperateDatabases.save_answer_to_AnswersDatabase(ANSWERS_DB, metric_id, answer, comment)
 
-    ##################Define functions to button behaviour:
+    ################## Define functions to button behaviour:
     def savefile(self):
         global ANSWERS_DB
         if self.sender().objectName() == 'actionSave_As':
@@ -1142,144 +1152,160 @@ class MainWindow(QMainWindow):
         self.ui.TitlesWidget.setCurrentIndex(4)
 
     def dashboard_btn_toggled(self):
-        self.ui.BodyWidget.setCurrentIndex(5)
-        self.ui.TitlesWidget.setCurrentIndex(5)
-        self.savefile()
-        self.UpdateDashboardPage()
+        if self.ui.BodyWidget.currentIndex() != 5:
+            self.ui.BodyWidget.setCurrentIndex(5)
+            self.ui.TitlesWidget.setCurrentIndex(5)
+            self.savefile()
+            self.UpdateDashboardPage()
 
     def closeEvent(self, event):
         super().closeEvent(event)
 
     def UpdateDashboardPage(self):
-
+        '''
+        ADD SOME COLUMNS TO DATAFRAMES FOR FURTHER PLOTING
+        '''
         #Get the all the data from answers and tables and do some compatibilizations
-        #Add ShortLabel and FullLabel to Objectives
-        Objectives = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "Objectives")
-        Objectives["DimensionID"] = Objectives["DimensionID"].astype(int)
-        Objectives["ObjectiveSubID"] = Objectives["ObjectiveSubID"].astype(int)
-        Objectives["ShortLabel"] = ''
-        Objectives["FullLabel"] = ''
+        #Add ShortLabel and FullLabel to self.objectives
+        self.objectives["ShortLabel"] = ''
+        self.objectives["FullLabel"] = ''
 
-        for index, row in Objectives.iterrows():
+        for index, row in self.objectives.iterrows():
             if row["DimensionID"] == 1:
                 DimensionLetter = "F"
             elif row["DimensionID"] == 2:
                 DimensionLetter = "P"
-            Objectives.at[index, "ShortLabel"] = f"Obj. {DimensionLetter}{row['ObjectiveSubID']}"
-            Objectives.at[index,"FullLabel"] = f"{Objectives.at[index,'ShortLabel']} - {row['ObjectiveName']}"
+            self.objectives.at[index, "ShortLabel"] = f"Obj. {DimensionLetter}{row['ObjectiveSubID']}"
+            self.objectives.at[index,"FullLabel"] = f"{self.objectives.at[index,'ShortLabel']} - {row['ObjectiveName']}"
 
-        #Add ShortLabel and FullLabel to Criteria
-        Criteria = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "Criteria")
-        Criteria["CriteriaSubID"] = Criteria["CriteriaSubID"].astype(int)
-        Criteria["ObjectiveID"] = Criteria["ObjectiveID"].astype(str)
-        Criteria["ShortLabel"] = ''
-        Criteria["FullLabel"] = ''
-        for index, row in Criteria.iterrows():
+        #Add ShortLabel and FullLabel to self.criteria
+        self.criteria["ShortLabel"] = ''
+        self.criteria["FullLabel"] = ''
+        for index, row in self.criteria.iterrows():
             Dimension = row["ObjectiveID"].split(".")[0]
             Objective = row["ObjectiveID"].split(".")[1]
             if Dimension == "1":
                 DimensionLetter = "F"
             elif Dimension == "2":
                 DimensionLetter = "P"
-            Criteria.at[index,"ShortLabel"] = f"Crit. {DimensionLetter}{Objective}.{row['CriteriaSubID']}"
-            Criteria.at[index,"FullLabel"] = f"{Criteria.at[index, 'ShortLabel']} - {row['CriteriaName']}"
+            self.criteria.at[index,"ShortLabel"] = f"Crit. {DimensionLetter}{Objective}.{row['CriteriaSubID']}"
+            self.criteria.at[index,"FullLabel"] = f"{self.criteria.at[index, 'ShortLabel']} - {row['CriteriaName']}"
 
-
-        Metrics = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "Metrics")
-        MetricsOptions = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "MetricsOptions")
-
-        ScenarioSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ScenarioSetup")
-        PerformanceAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "PerformanceAnswers")
         MetricsAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "MetricAnswers")
+        MetricsAnswers.set_index("metricID", inplace=True)
 
-        HazardLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "HazardLibrary")
-        HazardSetup = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "HazardSetup")
-        HazardAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "HazardAnswers")
 
-        #TREAT FUNCTIONAL DATA
-        #1.FILTER OBJECETIVES TO GET ONLY FUNCTIONAL DIMENSION!
-        Objectives = Objectives[Objectives["DimensionID"] == 1]
+        '''
+        TREAT FUNCTIONAL DIMENSION DATA
+        '''
+        # FILTER DATAFRAMES TO GET ONLY FUNCTIONAL DIMENSION
+        Functional_Objectives = self.objectives[self.objectives["DimensionID"] == 1]
+        Functional_Criteria = self.criteria[self.criteria.index.str.startswith("1.")]
+        Functional_Answers = MetricsAnswers[MetricsAnswers.index.str.startswith('1.')]
 
-        # Calculate the FunctionalMetrics Answers completnesss
-        ObjectivesCompletnessSummary = M_ResilienceCalculus.Calculate_Completness(MetricsAnswers)
+        # Calculate the Functional Answered Metrics completness
+        ObjectivesCompletnessSummary = M_ResilienceCalculus.Calculate_Completness(Functional_Answers)
 
         # Prepare ObjectivesCompletnessSummary to plot
-        ObjectivesCompletness = pd.merge(Objectives, ObjectivesCompletnessSummary, left_on='ObjectiveSubID', right_on = "Objective", how='inner')
-        ObjectivesCompletness = ObjectivesCompletness[['ShortLabel', 'FullLabel', 'ObjectiveSubID', 'ObjectiveID', 'Count', 'TotalAnswerStatus', 'MeanAnswerStatus']]
+        ObjectivesCompletness = pd.merge(Functional_Objectives, ObjectivesCompletnessSummary, left_index = True, right_index =True , how='inner')
 
+        # Get the Weigths
+        DimensionsWeight = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "DimensionsWeight")
+        DimensionsWeight.set_index("DimensionID", inplace=True)
+        ObjectivesWeight = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "ObjectivesWeight")
+        ObjectivesWeight.set_index("ObjectiveID", inplace=True)
+        CriteriaWeight = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "CriteriaWeight")
+        CriteriaWeight.set_index("CriteriaID", inplace=True)
+        self.Weights = {'Dimensions': DimensionsWeight, 'Objectives': ObjectivesWeight, 'Criteria': CriteriaWeight}
+        
         # Calculate the FunctionalDimensionRating, FunctionalObjectivesRating and FunctionalCriteriaRating
-        FunctionalDimensionRating, FunctionalObjectivesRating, FunctionalCriteriaRating = M_ResilienceCalculus.Calculate_FunctionalMetricsRating(Metrics, MetricsOptions, MetricsAnswers)
+        FunctionalDimensionRating, FunctionalObjectivesRating, FunctionalCriteriaRating = M_ResilienceCalculus.Calculate_FunctionalRating(self.Weights, self.metrics, self.metric_options, Functional_Answers)
 
-        # Prepare FunctionalObjectivesRating to plot
-        FunctionalObjectivesRating["Objective"] = FunctionalObjectivesRating["Objective"].astype(int)
-        FunctionalObjectivesRating = pd.merge(Objectives, FunctionalObjectivesRating, left_on='ObjectiveSubID', right_on = "Objective", how='inner')
-        FunctionalObjectivesRating = FunctionalObjectivesRating[['ShortLabel', 'FullLabel', 'ObjectiveSubID', 'ObjectiveID', 'Count', 'SumAnswerScores', 'MeanAnswerScores']]
+        '''
+        PREPARE FUNCTIONAL RESULTS TO PLOTTING
+        '''
+        FunctionalObjectivesRating = FunctionalObjectivesRating.join(Functional_Objectives[["ObjectiveName", "ShortLabel", "FullLabel"]].loc[FunctionalObjectivesRating.index], how = "right")
 
         # Prepare FunctionalCriteraRating to plot
-        for index, row in FunctionalCriteriaRating.iterrows():
-            FunctionalCriteriaRating.at[index, "Criterira"] = f"1.{row['Criteria']}"
-
-        FunctionalCriteriaRating = pd.merge(Criteria, FunctionalCriteriaRating, left_on='CriteriaID', right_on = "Criterira", how='inner')
-        FunctionalCriteriaRating = FunctionalCriteriaRating[['ShortLabel', 'FullLabel', 'CriteriaID', 'CriteriaSubID', 'Count', 'SumAnswerScores', 'MeanAnswerScores']]
-
-        self.FunctionalCriteriaRating = FunctionalCriteriaRating
+        self.FunctionalCriteriaRating = FunctionalCriteriaRating.join(Functional_Criteria[["CriteriaName", "ShortLabel", "FullLabel"]].loc[FunctionalCriteriaRating.index], how = "right")
 
         # Set the FCR_ComboBox options
-        ObjectivesID_List = ("F" + Objectives["ObjectiveID"].str.split(".").str[1] + " - " + Objectives["ObjectiveName"]).tolist()
+        ObjectivesID_List = ("F" + FunctionalObjectivesRating.index.str.split(".").str[1] + " - " + FunctionalObjectivesRating["ObjectiveName"]).tolist()
         M_Operate_GUI_Elements.updateQComboBox(self.ui.FCR_ComboBox, ObjectivesID_List)
 
-        # Plot the empty FCR plot at the begining
-        #self.updateFCR()
+        '''
+        PLOT FUNCTIONAL RESULTS
+        '''
+        #Plot the Functional Objectives Completness
+        M_PlotGraphs.plotHorizontalBars2(
+            DataFrame = ObjectivesCompletness,
+            labelColumn = "FullLabel",
+            DestinyWidget = self.ui.FDC_Widget,
+            Type = "Completness")
 
-        #Plot the FunctionalDimensionCompletness
-        M_PlotGraphs.plotHorizontalBars(DataFrame = ObjectivesCompletness,
-                             labelColumn = "FullLabel",
-                             dataColumn = "MeanAnswerStatus",
-                             xScale = 100,
-                             DestinyWidget = self.ui.FDC_Widget,
-                             MultiBar = False)
+        #Plot the Functional Objectives Rating
+        M_PlotGraphs.plotHorizontalBars2(
+            DataFrame = FunctionalObjectivesRating,
+            labelColumn = "FullLabel",
+            DestinyWidget = self.ui.FOR_Widget,
+            Type = "Rating")
 
-        #Plot the FunctionalObjectivesRating
-        M_PlotGraphs.plotHorizontalBars(DataFrame = FunctionalObjectivesRating,
-                             labelColumn = "FullLabel",
-                             dataColumn = "MeanAnswerScores",
-                             xScale = 1,
-                             DestinyWidget = self.ui.FOR_Widget,
-                             MultiBar = False)
-
-        #update FCR plot if FCR_ComboBox if new objective is selected
+        #Update Functional Criteria Rating plot when FCR_ComboBox changes
         self.ui.FCR_ComboBox.currentTextChanged.connect(self.updateFCR)
 
-        #Plot the FunctionalDimensionRating
-        M_PlotGraphs.plotResilienceCircle(round(FunctionalDimensionRating.loc[FunctionalDimensionRating['Dimension'] == '1', 'MeanResilience'][0],2),
+        #Plot the Functional Dimension Rating
+        M_PlotGraphs.plotResilienceCircle(
+            FunctionalDimensionRating,
                                   DestinyWidget = self.ui.FRR_Widget)
 
-        # PLOT EMPTY PERFROMANCE PLOTS:
+        '''
+        PLOT EMPTY PERFORMANCE GRAPHS
+        '''
+        self.update_performance_dataframes()
+         
+        self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(self.IndicatorsSetup)
 
-        self.Scenarios_List = PerformanceAnswers["ScenarioName"].tolist()
+        self.existing_scenarios = self.ScenarioSetup["ScenarioName"].tolist()
 
-        M_Operate_GUI_Elements.updateQComboBox(self.ui.PSS_ComboBox, self.Scenarios_List)
+        M_Operate_GUI_Elements.updateQComboBox(self.ui.PSS_ComboBox, self.existing_scenarios)
 
         self.baseline_scenario = None
 
         self.ScenarioList_model = QStandardItemModel()
         self.ui.PSS_ScenarioList.setModel(self.ScenarioList_model)
 
-        #Rename PerformanceAnswers to match the rest
-        new_column_names = {"M2111": "P1.1.1",
-                            "M2112": "P1.1.2",
-                            "M2121": "P1.2.1"
-                            }
-
-        PerformanceAnswers.rename(columns=new_column_names, inplace=True)
-        PerformanceAnswers.set_index("ScenarioName", inplace = True)
-
-        PerformanceConsequencesRating = M_ResilienceCalculus.Caculate_PerformanceConsequencesRating(HazardLibrary, HazardSetup, HazardAnswers)
+        '''
+        GET SRP INDICATORS
+            ------> Passar para dentro da M_ResilienceCalculus.Caculate_ConsequencesRating
+        '''
+        SRPRating = pd.DataFrame(columns = self.ScenarioSetup.index.to_list(),
+                                 index= self.IndicatorsSetup[self.IndicatorsSetup.index.str.startswith("SRP")].index.to_list())
+        
+        for ind_id, ind_prop in SRPRating.iterrows():
+            IndAns = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, f"{ind_id}")
+            IndAns.set_index("ScenarioID", inplace=True)
+            for scn_id, value in IndAns.iterrows():
+                IndResilience = 0
+                if value[0] == '':
+                    IndResilience = None
+                else:
+                    IndResilience = value[0].astype(float)
+                SRPRating.loc[ind_id, scn_id] = IndResilience
+        SRPRating = SRPRating.T
+        
+        '''
+        CALCULATE CONSEQUENCES INDICATORS
+        '''
+        PerformanceConsequencesRating = M_ResilienceCalculus.Caculate_ConsequencesRating(
+            AnswersDatabase = ANSWERS_DB,
+            IndicatorsLibrary = self.IndicatorsLibrary,
+            ScenarioSetup = self.ScenarioSetup,
+            IndicatorsSetup = self.IndicatorsSetup)
 
         #Create a list of plots to be updated on the run when the Scenario selection changes
         self.PerformancePlots = []
 
-        self.SPR_plot = M_PlotGraphs.plotPerformances(DataFrame = PerformanceAnswers,
+        self.SPR_plot = M_PlotGraphs.plotPerformances(DataFrame = SRPRating,
                                               xScale = 1,
                                               DestinyWidget = self.ui.SPR_Widget)
 
@@ -1288,11 +1314,12 @@ class MainWindow(QMainWindow):
         self.SCR_plot = M_PlotGraphs.plotPerformances(DataFrame = PerformanceConsequencesRating,
                                               xScale = 1,
                                               DestinyWidget = self.ui.SCR_Widget)
+        
         self.PerformancePlots.append(self.SCR_plot)
 
 
         #Calculate each Scenario Resilience has the average of all performance and hazard metrics
-        ScenariosPerformanceResilience = pd.merge(PerformanceAnswers, PerformanceConsequencesRating, left_index=True, right_index=True).astype(float).mean(axis=1)
+        ScenariosPerformanceResilience = pd.merge(SRPRating, PerformanceConsequencesRating, left_index=True, right_index=True).astype(float).mean(axis=1)
         ScenariosPerformanceResilience = pd.DataFrame(ScenariosPerformanceResilience, columns=["PerRes"])
 
         self.ResiliencePlots = []
@@ -1322,17 +1349,18 @@ class MainWindow(QMainWindow):
 
 
         new_baseline_scenario = self.ui.PSS_ComboBox.currentText()                          #set the new baseline scenario from the ComboBox text
+        new_baseline_scenario_index = str(self.ScenarioSetup[self.ScenarioSetup['ScenarioName'] == new_baseline_scenario].index[0])
         if new_baseline_scenario:                                                           #update the items to be shown on the QListView
             M_Operate_GUI_Elements.updateQListView(ListView = self.ui.PSS_ScenarioList,
                             Model = self.ScenarioList_model,
-                            Data = self.Scenarios_List,
+                            Data = self.existing_scenarios,
                             Exclude = new_baseline_scenario)
             for plot in self.PerformancePlots:
-                plot.update_series_visibility(new_baseline_scenario, True)              #activate the new baseline scenario on the plot
+                plot.update_series_visibility(new_baseline_scenario_index, True)              #activate the new baseline scenario on the plot
                 plot.set_baseline_scenario(new_baseline_scenario)                       #give to the plot class the name of the baseline scenario
 
             # Store the new baseline scenario for the next update
-            self.baseline_scenario = new_baseline_scenario                              #set the current baselinescenario from the new value for future changes
+            self.baseline_scenario = new_baseline_scenario_index                              #set the current baselinescenario from the new value for future changes
 
     def updatePerformancePlots(self, index):
         # Get the item from the model using the index
@@ -1358,26 +1386,32 @@ class MainWindow(QMainWindow):
         selected_text = self.ui.FCR_ComboBox.currentText()
 
         if selected_text != '':
-            ObjectiveID = selected_text.split(" - ")[0].split("F")[1]
-            showing_FunctionalCriteriaRating = self.FunctionalCriteriaRating[self.FunctionalCriteriaRating["CriteriaID"].str.startswith(f"1.{ObjectiveID}")]
-            showing_FunctionalCriteriaRating.reset_index(inplace = True)
+            ObjectiveID = f'1.{selected_text.split(" - ")[0].split("F")[1]}'
+            showing_FunctionalCriteriaRating = self.FunctionalCriteriaRating[self.FunctionalCriteriaRating["ObjectiveID"]==ObjectiveID]
+            # showing_FunctionalCriteriaRating.reset_index(inplace = True)
+            
+            M_PlotGraphs.plotHorizontalBars2(
+                DataFrame = showing_FunctionalCriteriaRating,
+                labelColumn = "FullLabel",
+                DestinyWidget = self.ui.FCR_Widget,
+                Type = "Rating")
+            
+            # M_PlotGraphs.plotHorizontalBars(DataFrame = showing_FunctionalCriteriaRating,
+            #                     labelColumn = "FullLabel",
+            #                     dataColumn = "MeanAnswerScores",
+            #                     xScale = 1,
+            #                     DestinyWidget = self.ui.FCR_Widget,
+            #                     MultiBar = False)
 
-            M_PlotGraphs.plotHorizontalBars(DataFrame = showing_FunctionalCriteriaRating,
-                                labelColumn = "FullLabel",
-                                dataColumn = "MeanAnswerScores",
-                                xScale = 1,
-                                DestinyWidget = self.ui.FCR_Widget,
-                                MultiBar = False)
+        # else:
+        #     noob = pd.DataFrame([], columns=['Column1'])
 
-        else:
-            noob = pd.DataFrame([], columns=['Column1'])
-
-            M_PlotGraphs.plotHorizontalBars(DataFrame = noob,
-                    xScale = 1,
-                    labelColumn = '',
-                    dataColumn = "Column1",
-                    DestinyWidget = self.ui.FCR_Widget,
-                    MultiBar = True)
+        #     M_PlotGraphs.plotHorizontalBars(DataFrame = noob,
+        #             xScale = 1,
+        #             labelColumn = '',
+        #             dataColumn = "Column1",
+        #             DestinyWidget = self.ui.FCR_Widget,
+        #             MultiBar = True)
 
 def load_FunctionalAnswers(Widget):
 
@@ -1490,7 +1524,7 @@ def FunctionalMetricBlock(metric_id, metric_name, metric_question, answer_type, 
         OptionsLayout = QVBoxLayout()
         if answer_type == "Single choice" or answer_type == "Multiple choice":
             Options = answer_options.filter(regex='^Opt')
-            Options = Options.values.tolist()[0]
+            Options = Options.values.tolist()
 
             if answer_type == "Single choice":
                 radio_group = QButtonGroup()
@@ -1840,7 +1874,7 @@ def main():
     WelcomePage = WelcomeWindow()
     WelcomePage.exec()
 
-    REFUSSDatabasePath = 'database\REFUSS_V7.db'
+    REFUSSDatabasePath = 'database\REFUSS_V8.db'
     AnswersDatabasePath = WelcomePage.fileSelected
     Status = WelcomePage.Status
 

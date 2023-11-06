@@ -196,11 +196,106 @@ class SingleHorizontalBarGraphWidget(QWidget):
         
         #colors = [cmap(norm(value)) if value != '' else 'darkgrey' for value in self.values]
         
-         # Create a values bar      
+        # Create a values bar      
         self.bar = self.ax.barh(1, self.value, alpha= 1, color = cmap(norm(self.value)), zorder = 1)
         
         # Create a light grey bar as a background behind the data bars
         self.ax.barh(1, self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, alpha = 0.2, zorder=0)
+
+        # Create the canvas to display the plot
+        self.canvas = FigureCanvas(self.fig)
+
+        # Connect the mouse motion event
+        self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
+
+        # Set the layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
+        
+        # Initialize the text element for the value inside the bars
+        self.text = None    
+
+class SingleHorizontalBarGraph(QWidget):
+    def __init__(self, data: list, colors:list, xmax: int):
+        super().__init__()
+        self.data = data.copy()
+        self.colors = colors.copy()
+        self.xmax = xmax
+        self.initUI()
+
+    def initUI(self):
+        # Create a figure and axes
+        self.fig = Figure(constrained_layout=True)
+        self.ax = self.fig.add_subplot(111)
+
+        # Fix the X values between 0 and xmax
+        self.ax.set_xlim(0, self.xmax)
+
+        # Set the x-axis tick intervals to 25 and show % sign
+        if self.xmax == 100:
+            self.ax.set_xticks(range(0, 101, 25))
+            #self.ax.set_xticklabels([f"{tick}%" for tick in range(0, 101, 25)])
+        elif self.xmax == 1:
+            self.ax.set_xticks(np.arange(0, 1.01, 0.25))
+            #self.ax.set_xticklabels([f"{tick}" for tick in np.arange(0, 1.01, 0.25)])
+        self.ax.set_xticklabels([])
+
+        self.ax.xaxis.set_tick_params(labelsize = "small")
+        self.ax.yaxis.set_tick_params(labelsize = "small")
+        
+        # Set the number of y values
+        self.ax.set_yticks(range(1))
+        self.ax.set_yticklabels(())
+        
+        # Hide the top and bottom axis lines
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['bottom'].set_visible(False)
+        
+        # Hide vertical gridlines
+        self.ax.grid(False)
+        
+        # Set the background color with 50% transparency
+        self.fig.patch.set_facecolor("AliceBlue")
+        self.fig.patch.set_alpha(0)     
+           
+        # Set the facecolor to none
+        self.ax.set_facecolor('none')
+        
+        # Create a colormap and normalize the values
+        cmap = cm.get_cmap('RdYlGn')
+        norm = plt.Normalize(0, self.xmax)
+        
+        #colors = [cmap(norm(value)) if value != '' else 'darkgrey' for value in self.values]
+        
+        z_order = list(range(len(self.data), 0, -1))
+        
+        for index, color in enumerate(self.colors):
+            if color == '':
+                self.colors[index] = cmap(norm(self.data[index]))
+                
+        #self.colors_reverse = self.colors[::-1]
+                        
+        #cumulative_series = np.cumsum(self.data)
+        
+        left = 0
+        
+        for i, data in enumerate(self.data):
+            if i == 0:
+                z_order = 2
+            else:
+                z_order = 1
+            bar = self.ax.barh(1, data, color = self.colors[i], alpha = 1, left = left, zorder = z_order)
+            left += data
+            if i == 0:
+                self.bar = bar
+        
+        # Create a values bar
+        #self.bar = self.ax.barh(1, width = cumulative_series[::-1], color = self.colors_reverse, alpha= 1)
+        # Create a light grey bar as a background behind the data bars
+        # self.ax.barh(1, self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, alpha = 0.2, zorder=0)
 
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
@@ -237,13 +332,13 @@ class SingleHorizontalBarGraphWidget(QWidget):
     
     def on_bar_hover(self, event):
         if event.inaxes == self.ax:
-            for bar in self.bar:
+            for i, bar in enumerate(self.bar):
                 if bar.contains(event)[0]:
                     # Add a contour
                     bar.set_edgecolor('darkblue')
                     bar.set_linewidth(1)
                     # Get the value of the hovered bar
-                    value = self.value
+                    value = bar._width
                     
                     # Remove the previous text element if it exists
                     if self.text:
@@ -255,9 +350,9 @@ class SingleHorizontalBarGraphWidget(QWidget):
                     labelpad = 0.025 * self.xmax
                     
                     if self.xmax == 1:
-                        label = f"{(value):.2f}"
+                        label = f"{round(value, 2)}"
                     elif self.xmax == 100:
-                        label = f"{str(value)}%"
+                        label = f"{round(value, 1)}%"
                     
                     if normvalue <= 0.1:
                         self.text = self.ax.text(value + labelpad, 1, label , va='center', ha = "left")
@@ -493,12 +588,13 @@ class ResilienceHorizontalBarGraphWidget(QWidget):
             text.remove()
 
 class CircularGraphWidget(QWidget):
-    def __init__(self, value):
+    def __init__(self, data: list, colors: list):
         super().__init__()
-        self.value = value
-        self.category = categorizeResilience(self.value)
+        self.data = data
+        self.colors = colors
+        self.category = categorizeResilience(self.data[0])
         
-        self.fontsize = int(self.width() / 40)
+        self.fontsize = int(self.width() / 50)
 
         self.initUI()     
         
@@ -524,18 +620,38 @@ class CircularGraphWidget(QWidget):
         self.WedgeWidth = 0.3
         
         # Create the grey back wedge:
-        wedge_empty = patches.Wedge(center = (0, 0), r = self.WedgeRadius, theta1 = 0, theta2= 360, width = self.WedgeWidth, facecolor='lightgrey', alpha = 0.2, edgecolor = 'black', linewidth = 0.5)
-        self.ax.add_patch(wedge_empty)
+        # wedge_empty = patches.Wedge(center = (0, 0), r = self.WedgeRadius, theta1 = 0, theta2= 360, width = self.WedgeWidth, facecolor='lightgrey', alpha = 0.2, edgecolor = 'black', linewidth = 0.5)
+        # self.ax.add_patch(wedge_empty)
 
+
+        for index, color in enumerate(self.colors):
+            if color == '':
+                self.colors[index] = self.cmap(self.norm(self.data[index]))
+                  
         # Create the filled part of the circular bar
-        self.wedge_filled = patches.Wedge(center = (0, 0), r = self.WedgeRadius , theta1 = 0, theta2= 360 * self.value, width = self.WedgeWidth, facecolor = self.cmap(self.norm(self.value)), edgecolor='none')
-        self.ax.add_patch(self.wedge_filled)
+        left = 0
+        for i, data in enumerate(self.data):
+            if i == 0:
+                z_order = 2
+                edge_color = '#34495E'
+            else:
+                z_order = 1
+                edge_color = 'none'
+            wedge_filled = patches.Wedge(center = (0, 0), r = self.WedgeRadius, 
+                                         theta1 = left, theta2 = left + 360 * data,
+                                         width = self.WedgeWidth, facecolor = self.colors[i],
+                                         zorder = z_order, edgecolor = edge_color, linewidth = 1)
+            left += 360 * data
+            self.ax.add_patch(wedge_filled)
+            if i == 0:
+                self.wedge_filled = wedge_filled           
 
         # Create a new axes for the text label
         self.text_ax = self.fig.add_axes([0, 0, 1, 1], zorder=1)
         self.text_ax.axis('off')          
         
-        self.text_label = self.text_ax.text(0.5, 0.5, f'{self.category}', ha='center', va='center', fontsize = self.fontsize)    
+        # Create the central label
+        self.text_label = self.text_ax.text(0.5, 0.5, f'{self.category}\n{self.data["Rating"]:.2f}', ha='center', va='center', fontsize = self.fontsize)    
         
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
@@ -570,13 +686,13 @@ class CircularGraphWidget(QWidget):
             self.wedge_filled.set_theta2(end_angle)
             self.wedge_filled.set_facecolor(self.cmap(self.norm(norm_value)))
 
-            self.text_label.set_fontsize(norm_value * self.fontsize/self.value)
+            self.text_label.set_fontsize(norm_value * self.fontsize/self.data[0])
 
-            if norm_value >= self.value:
+            if norm_value >= self.data[0]:
                 #self.canvas.draw()
                 self.animation.event_source.stop()
                 # Connect the mouse motion event  
-                self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
+                #self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
             self.canvas.draw()
         
         self.frames = 150  # Number of frames in the animation
@@ -593,7 +709,7 @@ class CircularGraphWidget(QWidget):
             self.wedge_filled.set_edgecolor('darkblue')
             self.wedge_filled.set_linewidth(1)
             # Get the value of the hovered bar
-            value = self.value
+            value = self.wedge_filled.theta2
             
             # Remove the previous text element if it exists
             if self.text_value:
