@@ -2,6 +2,7 @@ from os import path
 import pandas as pd
 import sys
 from PySide6.QtSql import QSqlQuery, QSqlDatabase
+from PySide6.QtWidgets import QMessageBox
 
 def establishDatabaseConnections(DatabaseList: list):
     """
@@ -64,8 +65,9 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
         
     if not query.exec("CREATE TABLE IF NOT EXISTS IndicatorsSetup ("
                "IndicatorID TEXT UNIQUE, "
-               "IndicatorUnit TEXT, "
-               "IndicatorComplement TEXT)"
+               "SelectedUnit TEXT, "
+               "IndicatorComplement TEXT, "
+               "SelectedState INTEGER )"
                ):
         print(f"Error creating IndicatorsSetup table: {query.lastError().text()}")
 
@@ -89,6 +91,26 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
     for i in range(1, 11):
         query.exec(f"ALTER TABLE HazardAnswers ADD COLUMN Class{i} TEXT")
 
+    if not query.exec("CREATE TABLE IF NOT EXISTS DimensionsWeight ("
+               "DimensionID TEXT UNIQUE, "
+               "DimensionName TEXT,"
+               "Weight REAL)"
+               ):
+        print(f"Error creating DimensionsWeight table: {query.lastError().text()}")
+
+    if not query.exec("CREATE TABLE IF NOT EXISTS ObjectivesWeight ("
+               "ObjectiveID TEXT UNIQUE, "
+               "ObjectiveName TEXT,"
+               "Weight REAL)"
+               ):
+        print(f"Error creating ObjectivesWeight table: {query.lastError().text()}")
+
+    if not query.exec("CREATE TABLE IF NOT EXISTS CriteriaWeight ("
+               "CriteriaID TEXT UNIQUE, "
+               "CriteriaName TEXT,"
+               "Weight REAL)"
+               ):
+        print(f"Error creating CriteriaWeight table: {query.lastError().text()}")
 
     ######### QUERIES TO UPDATE TABLES ##################
 
@@ -188,13 +210,120 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
 
     Answers_Database.commit()
 
-def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+
+    # Create the Dimensions_Weight table
+    query_A = QSqlQuery(REFUSS_Database)
+    query_B = QSqlQuery(Answers_Database)
     
+    # Retrieve the dimensions from the Dimensions table
+    query_A.exec('SELECT DimensionID, DimensionName FROM Dimensions')
+    
+    dimensions = {}
+    while query_A.next():
+        dimension_id = query_A.value(0)
+        dimension_name = query_A.value(1)
+        dimensions[dimension_id] = dimension_name
+
+    for dimension_id, dimension_name in dimensions.items():
+        # Calculate and populate the weights for Dimensions_Weight table
+        dimension_weight = 1 / len(dimensions)
+
+        query_B.prepare('INSERT INTO DimensionsWeight VALUES (?, ?, ?)')
+        query_B.addBindValue(dimension_id)
+        query_B.addBindValue(dimension_name)
+        query_B.addBindValue(dimension_weight)
+        query_B.exec()
+
+        # Retrieve the objectives within the current dimension
+        query_A.prepare('SELECT ObjectiveID, ObjectiveName FROM Objectives WHERE DimensionID = ?')
+        query_A.addBindValue(dimension_id)
+        query_A.exec()
+        objectives = {}
+        while query_A.next():
+            objective_id = query_A.value(0)
+            objective_name = query_A.value(1)
+            objectives[objective_id] = objective_name
+
+        for objective_id, objective_name in objectives.items():
+            # Calculate and populate the weights for Objectives_Weight table within the current dimension
+            objective_weight = 1 / len(objectives)
+
+            query_B.prepare('INSERT INTO ObjectivesWeight VALUES (?, ?, ?)')
+            query_B.addBindValue(objective_id)
+            query_B.addBindValue(objective_name)
+            query_B.addBindValue(objective_weight)
+            query_B.exec()
+
+            # Retrieve the criteria within the current objective
+            query_A.prepare('SELECT CriteriaID, CriteriaName FROM Criteria WHERE ObjectiveID = ?')
+            query_A.addBindValue(objective_id)
+            query_A.exec()
+            criteria = {}
+            while query_A.next():
+                criteria_id = query_A.value(0)
+                criteira_name = query_A.value(1)
+                criteria[criteria_id] = criteira_name
+
+            for criteria_id, criteria_name in criteria.items():
+                # Calculate and populate the weights for Criteria_Weight table within the current objective
+                criteria_weight = 1 / len(criteria)
+
+                query_B.prepare('INSERT INTO CriteriaWeight VALUES (?, ?, ?)')
+                query_B.addBindValue(criteria_id)
+                query_B.addBindValue(criteria_name)
+                query_B.addBindValue(criteria_weight)
+                query_B.exec()
+
+def createIndicatorsSetup(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+    # Connect to both databases
+    if REFUSS_Database.isOpen() and Answers_Database.isOpen():
+        refuss_query = QSqlQuery(REFUSS_Database)
+        answers_query = QSqlQuery(Answers_Database)
+
+        # Retrieve unique 'IndicatorID' values from the REFUSS_Database table
+        refuss_query.exec("SELECT IndicatorID FROM IndicatorsLibrary")
+
+        # Iterate through the retrieved 'IndicatorID' values and insert them into Answers_Database
+        while refuss_query.next():
+            indicator_id = refuss_query.value(0)
+
+            # Insert 'IndicatorID' into Answers_Database table
+            insert_query = f"INSERT INTO IndicatorsSetup (IndicatorID, SelectedState) VALUES ('{indicator_id}', 0)"
+            if answers_query.exec(insert_query):
+                print(f"Inserted {indicator_id} into Answers_Database")
+            else:
+                print(f"Failed to insert {indicator_id} into Answers_Database")
+
+        # Commit the changes to the Answers_Database
+        Answers_Database.commit()
+    else:
+        print("Both databases must be open before running this function")    
+
+def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+
+    """criar tabela na database se não existir B1UsesSetup"""
+    if not Answers_Database.isOpen():
+        QMessageBox.critical(None, "Database Error", "Answers_Database is not open.")
+    else:
+        # Criar a tabela se ela não existir
+        query = QSqlQuery(Answers_Database)
+        if not query.exec("CREATE TABLE IF NOT EXISTS B1UsesSetup ("
+                "CostumUse TEXT, "
+                "TotalSize NUMERIC, "
+                "MethodologyClass TEXT)"
+            ):
+            print(f"Failed to create table B1Settings. {query.lastError().text()}")
+    
+    
+    '''Criar as restantes tabelas'''
     ConsequencesLibrary = fetch_table_from_database(REFUSS_Database, "IndicatorsLibrary")
     ConsequencesLibrary.set_index("IndicatorID", inplace = True)
         
     query = QSqlQuery(Answers_Database)
 
+    
+    Indicators_tables = Answers_Database.tables()
     for indicatorID, properties in ConsequencesLibrary.iterrows():
         ClassesLabels = properties["ClassesLabel"].split("; ")
         
@@ -202,73 +331,94 @@ def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlD
         columns = []
         for index, label in enumerate(ClassesLabels):
             columns.append(f"[{label}] REAL")
-            #columns.append(f"{label.replace(' ','')} REAL")
         
         columns_str = ", ".join(columns)
         
-        if query.exec(f"CREATE TABLE IF NOT EXISTS {indicatorID} ("
-                f"ScenarioID INTEGER PRIMARY KEY REFERENCES ScenarioSetup (ScenarioID), "
-                f"{columns_str} )"
-                ):
+        if indicatorID not in Indicators_tables:
+            if indicatorID == 'B1':
+                scenario_column = f"ScenarioID INTEGER UNIQUE REFERENCES ScenarioSetup (ScenarioID), "
+                extra_column = f"BuildingUse TEXT , "
+            else:
+                scenario_column = "ScenarioID INTEGER UNIQUE REFERENCES ScenarioSetup (ScenarioID), "
+                extra_column = ""
+            if query.exec(f"CREATE TABLE {indicatorID} ("
+                    f"{scenario_column}"
+                    f"{extra_column}"
+                    f"{columns_str})"
+                    ):
 
-            # Create a different variable for the inner loop
-            inner_query = QSqlQuery(Answers_Database)
-            scenario_query = QSqlQuery(Answers_Database)
-            scenario_query.exec("SELECT ScenarioID FROM ScenarioSetup")
-            
-            while scenario_query.next():
-                scenario_id = scenario_query.value(0)
-                if not inner_query.exec(f"INSERT INTO {indicatorID} (ScenarioID) VALUES ('{scenario_id}')"):
-                    print(f"Error inserting ScenarioID {scenario_id} into {indicatorID}: {query.lastError().text()}")
-        else:
-            print(f"Error creating {indicatorID} table: {query.lastError().text()} in setConsequencesTables")
+                if indicatorID == 'B1':
+                    updateB1Table(Answers_Database)
+                else:
+                    # Create a different variable for the inner loop
+                    inner_query = QSqlQuery(Answers_Database)
+                    scenario_query = QSqlQuery(Answers_Database)
+                    scenario_query.exec("SELECT ScenarioID FROM ScenarioSetup")
+                    
+                    while scenario_query.next():
+                        scenario_id = scenario_query.value(0)
+                        if not inner_query.exec(f"INSERT INTO {indicatorID} (ScenarioID) VALUES ('{scenario_id}')"):
+                            print(f"Error inserting ScenarioID {scenario_id} into {indicatorID}: {query.lastError().text()}")
+            else:
+                print(f"Error creating {indicatorID} table: {query.lastError().text()} in setConsequencesTables")
 
+def updateB1Table(Answers_Database: QSqlDatabase):
+    if not Answers_Database.isValid() or not Answers_Database.isOpen():
+        return
 
-    # for table_name, _ in ConsequencesLibrary.iterrows():
-    #     # Drop the trigger if it exists
-    #     query.exec(f"DROP TRIGGER IF EXISTS Upload_ScenarioID_at_{table_name}")
+    query = QSqlQuery(db = Answers_Database)
+    
+    custom_uses = []
+    query.exec("SELECT DISTINCT CostumUse FROM B1UsesSetup")
+    while query.next():
+        use = query.value(0)
+        custom_uses.append(use)
+                
+    # Get the list of unique ScenarioID values from the B1 table
+    scenario_ids = []
+    query.exec("SELECT DISTINCT ScenarioID FROM ScenarioSetup")
+    while query.next():
+        scenario_id = query.value(0)
+        scenario_ids.append(scenario_id)
 
-    #     # Create a trigger for the current table
-    #     trigger_sql = f"""
-    #         CREATE TRIGGER Upload_ScenarioID_at_{table_name}
-    #         AFTER INSERT ON ScenarioSetup
-    #         FOR EACH ROW
-    #         BEGIN
-    #             INSERT INTO {table_name} (ScenarioID) VALUES (NEW.ScenarioID);
-    #         END
-    #     """
-        
-    #     # Execute the trigger creation SQL
-    #     if not query.exec(trigger_sql):
-    #         print(f"Error creating trigger Upload_ScenarioID_at_{table_name}: {query.lastError().text()}")
+    # Check if the CustomUse already exists in the B1 table and insert if not
+    for scenario_id in scenario_ids:
+        for custom_use in custom_uses:
+            query.exec(
+                f"""
+                SELECT BuildingUse FROM B1
+                WHERE ScenarioID = {scenario_id} AND BuildingUse = '{custom_use}'
+                """
+            )
 
-    # # Drop the trigger if it exists
-    # query.exec("DROP TRIGGER IF EXISTS Delete_Scenario_at_Consequences")
+            # If not found, insert a new row
+            if not query.next():
+                query.exec(
+                    f"""
+                    INSERT INTO B1 (ScenarioID, BuildingUse)
+                    VALUES ({scenario_id}, '{custom_use}')
+                    """
+                )
+                # Handle any errors that might occur
+                if not query.isActive():
+                    print(f"Error inserting data: {query.lastError().text()}")
 
-    # # Construct the SQL statements for DELETE actions
-    # delete_statements = [
-    #     f"DELETE FROM {table_name} WHERE ScenarioID = OLD.ScenarioID"
-    #     for table_name, _ in ConsequencesLibrary.iterrows()
-    # ]
+    # Remove CustomUse entries from the B1 table if they were removed
+    for scenario_id in scenario_ids:
+        query.exec(
+            f"""
+            DELETE FROM B1
+            WHERE ScenarioID = {scenario_id} AND BuildingUse NOT IN ({", ".join(["'" + custom_use + "'" for custom_use in custom_uses])})
+            """
+        )
+        # Handle any errors that might occur
+        if not query.isActive():
+            print(f"Error deleting data: {query.lastError().text()}")
 
-    # # Join the DELETE statements with semicolons and line breaks
-    # delete_sql = ";\n".join(delete_statements)
-
-    # # Create a single trigger for ScenarioSetup
-    # trigger_sql = f"""
-    #     CREATE TRIGGER Delete_Scenario_at_Consequences
-    #     AFTER DELETE ON ScenarioSetup
-    #     FOR EACH ROW
-    #     BEGIN
-    #         {delete_sql};
-    #     END
-    # """
-
-    # # Execute the trigger creation SQL
-    # if not query.exec(trigger_sql):
-    #     print(f"Error creating trigger Delete_Scenario_at_Consequences: {query.lastError().text()}")
-
-   
+    # Commit the changes to the database
+    if not Answers_Database.commit():
+        print(f"Error committing changes in UpdateB1Table: {query.lastError().text()}")
+ 
 def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
 
     query = QSqlQuery(REFUSS_Database)
@@ -278,7 +428,7 @@ def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
     criteria_query = ("SELECT * FROM Criteria", "Criteria")
     metrics_query = ("SELECT * FROM Metrics", "Metrics")
     metrics_options_query = ("SELECT * FROM MetricsOptions", "MetricsOptions")
-    indicators_classes_query = ("SELECT * FROM IndicatorsClasses", "IndicatorsClasses")
+    indicators_classes_query = ("SELECT * FROM IndicatorsClassesLibrary", "IndicatorsClasses")
     indicators_library_query = ("SELECT * FROM IndicatorsLibrary", "IndicatorsLibrary")
 
     all_queries = [dimension_query,
@@ -355,7 +505,7 @@ def FillNewAnswersDatabase(AnswersDatabase: QSqlDatabase, metrics: pd.DataFrame)
     query = QSqlQuery(AnswersDatabase)
     query.prepare("INSERT INTO MetricAnswers (criteriaID, metricID) VALUES (:value1, :value2)")
 
-    MetricsID = metrics["MetricID"]
+    MetricsID = metrics.index.to_list()
     CriteriaID = metrics["CriteriaID"]
 
     for metric, criteria in zip(MetricsID, CriteriaID):

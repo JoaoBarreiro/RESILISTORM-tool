@@ -33,6 +33,7 @@ class Ui_SetupWindow(object):
         SetupWindow.setSizePolicy(sizePolicy)
         SetupWindow.setMinimumSize(QSize(800, 500))
         SetupWindow.setMaximumSize(QSize(800, 500))
+        
         self.centralwidget = QWidget(SetupWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayoutWidget = QWidget(self.centralwidget)

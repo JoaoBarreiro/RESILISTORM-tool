@@ -60,6 +60,7 @@ def plotHorizontalBars(DataFrame: pd.DataFrame, labelColumn: str, dataColumn: st
             label.setFont(QFont("Segoe UI", weight=QFont.Bold))
             label.setStyleSheet("QLabel { padding-top: 5px; }")
             layout.addWidget(label)
+            
             layout.addWidget(M_GraphClasses.SingleHorizontalBarGraphWidget(Values[index], xScale))
     else:            
         Categories = DataFrame.iloc[:, 0].tolist()
@@ -67,9 +68,53 @@ def plotHorizontalBars(DataFrame: pd.DataFrame, labelColumn: str, dataColumn: st
         MultiBarPlot = M_GraphClasses.MultiHorizontalBarGraphWidget(Categories, Values, xScale)
         layout.addWidget(MultiBarPlot)
         
-def plotResilienceCircle(ResilienceValue: float, DestinyWidget: QWidget):
+def plotHorizontalBars2(DataFrame: pd.DataFrame,
+                        labelColumn: str,
+                        DestinyWidget: QWidget,
+                        Type: str,
+                        yPrefix: str = "Crit. "):
+    #int = 100 ou 1
+    
+    layout = DestinyWidget.layout()
+    if layout is not None:
+        # Remove all widgets from the layout
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+    else:
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-    Res_plotter = M_GraphClasses.CircularGraphWidget(ResilienceValue)
+    DestinyWidget.setLayout(layout)
+    
+    for index, row in DataFrame.iterrows():
+        label = QLabel(f"{DataFrame.at[index, labelColumn]}")
+        label.setAlignment(Qt.AlignCenter)
+        label.setFont(QFont("Segoe UI", weight=QFont.Bold))
+        label.setStyleSheet("QLabel { padding-top: 5px; }")
+        layout.addWidget(label)
+        if Type == "Completness":
+            xScale = 100
+            layout.addWidget(M_GraphClasses.SingleHorizontalBarGraph(
+                data = row[["Completness", "Missing"]],
+                colors = ["","#808080"],
+                xmax = xScale))
+        elif Type == "Rating":
+            xScale = 1
+            layout.addWidget(M_GraphClasses.SingleHorizontalBarGraph(
+                data = row[["Rating", "Space", "Missing"]],
+                colors = ["","#D6DBDF", "#808080"],
+                xmax = xScale))  
+
+def plotResilienceCircle(DataFrame: pd.DataFrame, DestinyWidget: QWidget):
+    
+    Res_plotter = M_GraphClasses.CircularGraphWidget(
+        data = DataFrame.loc['1', ["Rating", "Space","Missing"]],
+        colors = ["", "#D6DBDF", "#808080"])
 
     Res_plotter.animateWedge()
 

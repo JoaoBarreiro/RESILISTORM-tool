@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'MainPage_V5SKaXQl.ui'
+## Form generated from reading UI file 'MainPage_V5fhGzpa.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -829,7 +829,7 @@ class Ui_MainWindow(object):
 "")
         self.Climate_Box = QWidget()
         self.Climate_Box.setObjectName(u"Climate_Box")
-        self.Climate_Box.setGeometry(QRect(0, 0, 515, 290))
+        self.Climate_Box.setGeometry(QRect(0, 0, 359, 154))
         self.verticalLayout_28 = QVBoxLayout(self.Climate_Box)
         self.verticalLayout_28.setObjectName(u"verticalLayout_28")
         self.Koppen_Form = QFormLayout()
@@ -1007,7 +1007,7 @@ class Ui_MainWindow(object):
         self.UP_ToolBox_2.addItem(self.Climate_Box, u"CLIMATE AND WEATHER")
         self.Built_Box = QWidget()
         self.Built_Box.setObjectName(u"Built_Box")
-        self.Built_Box.setGeometry(QRect(0, 0, 454, 337))
+        self.Built_Box.setGeometry(QRect(0, 0, 274, 176))
         self.verticalLayout_29 = QVBoxLayout(self.Built_Box)
         self.verticalLayout_29.setObjectName(u"verticalLayout_29")
         self.verticalLayout_29.setContentsMargins(9, -1, -1, -1)
@@ -1104,7 +1104,7 @@ class Ui_MainWindow(object):
 "")
         self.Domain_Box = QWidget()
         self.Domain_Box.setObjectName(u"Domain_Box")
-        self.Domain_Box.setGeometry(QRect(0, 0, 393, 290))
+        self.Domain_Box.setGeometry(QRect(0, 0, 177, 250))
         self.verticalLayout_12 = QVBoxLayout(self.Domain_Box)
         self.verticalLayout_12.setObjectName(u"verticalLayout_12")
         self.StudyName_Form_3 = QFormLayout()
@@ -1231,7 +1231,7 @@ class Ui_MainWindow(object):
         self.UP_ToolBox.addItem(self.Domain_Box, u"DOMAIN")
         self.Population_Box = QWidget()
         self.Population_Box.setObjectName(u"Population_Box")
-        self.Population_Box.setGeometry(QRect(0, 0, 393, 290))
+        self.Population_Box.setGeometry(QRect(0, 0, 215, 250))
         self.verticalLayout_13 = QVBoxLayout(self.Population_Box)
         self.verticalLayout_13.setObjectName(u"verticalLayout_13")
         self.Age_Layout_5 = QFormLayout()
@@ -1389,7 +1389,7 @@ class Ui_MainWindow(object):
 "")
         self.Service_Box = QWidget()
         self.Service_Box.setObjectName(u"Service_Box")
-        self.Service_Box.setGeometry(QRect(0, 0, 454, 431))
+        self.Service_Box.setGeometry(QRect(0, 0, 205, 213))
         self.verticalLayout = QVBoxLayout(self.Service_Box)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.Service_Form = QFormLayout()
@@ -1498,7 +1498,7 @@ class Ui_MainWindow(object):
         self.SW_ToolBox.addItem(self.Service_Box, u"SERVICE MANAGEMENT")
         self.NBS_Box = QWidget()
         self.NBS_Box.setObjectName(u"NBS_Box")
-        self.NBS_Box.setGeometry(QRect(0, 0, 454, 431))
+        self.NBS_Box.setGeometry(QRect(0, 0, 274, 146))
         self.verticalLayout_7 = QVBoxLayout(self.NBS_Box)
         self.verticalLayout_7.setObjectName(u"verticalLayout_7")
         self.ExistingNBS_Labael_8 = QLabel(self.NBS_Box)
@@ -1569,7 +1569,7 @@ class Ui_MainWindow(object):
         self.SW_ToolBox_2.setFrameShape(QFrame.NoFrame)
         self.Minor_Box_2 = QWidget()
         self.Minor_Box_2.setObjectName(u"Minor_Box_2")
-        self.Minor_Box_2.setGeometry(QRect(0, 0, 454, 431))
+        self.Minor_Box_2.setGeometry(QRect(0, 0, 274, 305))
         self.verticalLayout_19 = QVBoxLayout(self.Minor_Box_2)
         self.verticalLayout_19.setObjectName(u"verticalLayout_19")
         self.Minor_Form_2 = QFormLayout()
@@ -1706,7 +1706,7 @@ class Ui_MainWindow(object):
         self.SW_ToolBox_2.addItem(self.Minor_Box_2, u"MINOR SYSTEM")
         self.Major_Box_2 = QWidget()
         self.Major_Box_2.setObjectName(u"Major_Box_2")
-        self.Major_Box_2.setGeometry(QRect(0, 0, 454, 431))
+        self.Major_Box_2.setGeometry(QRect(0, 0, 289, 161))
         self.verticalLayout_20 = QVBoxLayout(self.Major_Box_2)
         self.verticalLayout_20.setObjectName(u"verticalLayout_20")
         self.Temperature_Layout_8 = QFormLayout()
@@ -1812,6 +1812,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.horizontalLayout_4.setContentsMargins(10, 10, 10, 10)
         self.Functional_LeftWidget = QVBoxLayout()
+        self.Functional_LeftWidget.setSpacing(5)
         self.Functional_LeftWidget.setObjectName(u"Functional_LeftWidget")
         self.Functional_list = QTreeWidget(self.Page3_Functional)
         __qtreewidgetitem = QTreeWidgetItem()
@@ -1836,9 +1837,32 @@ class Ui_MainWindow(object):
 
         self.Functional_LeftWidget.addWidget(self.Functional_list)
 
-        self.verticalSpacer_21 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.verticalSpacer_40 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
-        self.Functional_LeftWidget.addItem(self.verticalSpacer_21)
+        self.Functional_LeftWidget.addItem(self.verticalSpacer_40)
+
+        self.WeightsSU_btn = QPushButton(self.Page3_Functional)
+        self.WeightsSU_btn.setObjectName(u"WeightsSU_btn")
+        sizePolicy5.setHeightForWidth(self.WeightsSU_btn.sizePolicy().hasHeightForWidth())
+        self.WeightsSU_btn.setSizePolicy(sizePolicy5)
+        self.WeightsSU_btn.setMinimumSize(QSize(170, 30))
+        self.WeightsSU_btn.setMaximumSize(QSize(16777215, 16777215))
+        self.WeightsSU_btn.setStyleSheet(u"QPushButton {\n"
+"    background-color: #e7fcfe;\n"
+"    border-radius: 15px;\n"
+"	font: 700 9pt \"Segoe UI\";\n"
+"	border: 1px solid black;\n"
+"}\n"
+"")
+        icon14 = QIcon()
+        icon14.addFile(u":/icon/icons/settings-12-64.ico", QSize(), QIcon.Normal, QIcon.Off)
+        self.WeightsSU_btn.setIcon(icon14)
+
+        self.Functional_LeftWidget.addWidget(self.WeightsSU_btn, 0, Qt.AlignHCenter|Qt.AlignVCenter)
+
+        self.verticalSpacer_39 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+
+        self.Functional_LeftWidget.addItem(self.verticalSpacer_39)
 
 
         self.horizontalLayout_4.addLayout(self.Functional_LeftWidget)
@@ -1906,30 +1930,9 @@ class Ui_MainWindow(object):
 "	border: 1px solid black;\n"
 "}\n"
 "")
-        icon14 = QIcon()
-        icon14.addFile(u":/icon/icons/settings-12-64.ico", QSize(), QIcon.Normal, QIcon.Off)
         self.ScenarioSU_btn.setIcon(icon14)
 
         self.Performance_LeftWidget.addWidget(self.ScenarioSU_btn, 0, Qt.AlignHCenter|Qt.AlignVCenter)
-
-        self.HazardSU_btn = QPushButton(self.Page4_Performance)
-        self.HazardSU_btn.setObjectName(u"HazardSU_btn")
-        sizePolicy5.setHeightForWidth(self.HazardSU_btn.sizePolicy().hasHeightForWidth())
-        self.HazardSU_btn.setSizePolicy(sizePolicy5)
-        self.HazardSU_btn.setMinimumSize(QSize(170, 30))
-        self.HazardSU_btn.setMaximumSize(QSize(16777215, 16777215))
-        self.HazardSU_btn.setStyleSheet(u"QPushButton {\n"
-"    background-color: #ffb8b8;\n"
-"    border-radius: 15px;\n"
-"	font: 700 9pt \"Segoe UI\";\n"
-"	border: 1px solid black;\n"
-"}\n"
-"")
-        icon15 = QIcon()
-        icon15.addFile(u":/icon/icons/alert-64.ico", QSize(), QIcon.Normal, QIcon.Off)
-        self.HazardSU_btn.setIcon(icon15)
-
-        self.Performance_LeftWidget.addWidget(self.HazardSU_btn, 0, Qt.AlignHCenter|Qt.AlignVCenter)
 
         self.verticalSpacer_37 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
@@ -2352,7 +2355,7 @@ class Ui_MainWindow(object):
         self.menu_btn_2.setDefault(False)
         self.TitlesWidget.setCurrentIndex(0)
         self.home_btn_2.setDefault(False)
-        self.BodyWidget.setCurrentIndex(5)
+        self.BodyWidget.setCurrentIndex(3)
         self.UP_ToolBox_2.setCurrentIndex(0)
         self.UP_ToolBox_2.layout().setSpacing(10)
         self.UP_ToolBox.setCurrentIndex(0)
@@ -2509,8 +2512,8 @@ class Ui_MainWindow(object):
         self.lengthAlternativeLabel_6.setText(QCoreApplication.translate("MainWindow", u"Lenght of alternative flow path (km)", None))
         self.Temperature_Label_8.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:10pt; font-weight:700;\">AVERAGE STREET SECTION</span></p></body></html>", None))
         self.SW_ToolBox_2.setItemText(self.SW_ToolBox_2.indexOf(self.Major_Box_2), QCoreApplication.translate("MainWindow", u"MAJOR SYSTEM", None))
-        self.ScenarioSU_btn.setText(QCoreApplication.translate("MainWindow", u"SCENARIO SET-UP", None))
-        self.HazardSU_btn.setText(QCoreApplication.translate("MainWindow", u"HAZARD SET-UP", None))
+        self.WeightsSU_btn.setText(QCoreApplication.translate("MainWindow", u" WEIGHTS SETUP", None))
+        self.ScenarioSU_btn.setText(QCoreApplication.translate("MainWindow", u" SCENARIO SETUP", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:11pt; font-weight:700;\">FUNCTIONAL DIMENSION</span></p></body></html>", None))
         self.label_8.setText(QCoreApplication.translate("MainWindow", u"ANSWER'S COMPLETNESS", None))
         self.label_3.setText(QCoreApplication.translate("MainWindow", u"OBJECTIVES RATING", None))
