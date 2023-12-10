@@ -54,7 +54,7 @@ class HazardSetupDelegate(QStyledItemDelegate):
         if index.column() in (0,1):
             editor = QComboBox(parent)
             if index.column() == 0:
-                editor.addItems(M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "HazardLibrary")["ShowName"])
+                editor.addItems(M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "HazardLibrary")["ShowName"])
             elif index.column() == 1:
                 editor.addItems(["%", "Area"])
             return editor
@@ -511,42 +511,15 @@ class MainWindow(QMainWindow):
         '''
         INITIALIZE STUDY
         '''
-        self.Study = Study(WelcomeDialog, STUDY_DB, REFUSS_DB)      
+        self.Study = Study(WelcomeDialog, STUDY_DB, RESILISTORM_DB)      
         
         self.ui.BodyWidget.currentChanged.connect(self.update_study)
-        
-        # # Create a copy of the Methodology Database and Study Structure Database to the Study Directory
-        # Original_Methodology = 'database\REFUSS_V8.db'
-        # new_methodology_filename  = "RESILISTORM.db"
-
-        # Original_Study = 'database\Study_Structure.db'
-        # new_study_filename  = f"{self.Study.Name}-STUDY.db"
-
-        # if WelcomeDialog.status == "New":
-        #     # Make a copy of the Methodology Database to the Study Directory
-        #     copy_and_rename_file(Original_Methodology, self.Study.Directory, new_methodology_filename)
-
-        #     # Make a copy of the Study Strucutre Database to the Study Directory
-        #     copy_and_rename_file(Original_Study, self.Study.Directory, new_study_filename)
-
-        # RESILISTORM_DatabasePath =  os.path.join(self.Study.Directory, new_methodology_filename)
-        # self.Study.Database = os.path.join(self.Study.Directory, new_study_filename)
-
-        # M_OperateDatabases.establishDatabaseConnections([(REFUSS_DB, self.Study.Methodology_path),
-        #                                                  (STUDY_DB, self.Study.Database_path)
-        #                                                  ])
-
-        # # Create Study Database default tables
-        # if WelcomeDialog.status == "New":
-        #     M_OperateDatabases.create_study_tables(STUDY_DB)
-        #     M_OperateDatabases.fillIndicatorsSetup(REFUSS_DB, STUDY_DB)
-        #     M_OperateDatabases.FillNewWeightsDatabase(REFUSS_DB, STUDY_DB)
-        
+                
         """
         GET METHODOLOGY METRICS
         """
         
-        refuss_contents = M_OperateDatabases.getREFUSSDatabase(REFUSS_DB)
+        refuss_contents = M_OperateDatabases.getREFUSSDatabase(RESILISTORM_DB)
         self.dimensions = refuss_contents[0]
         self.objectives = refuss_contents[1].set_index("ObjectiveID")
         self.criteria = refuss_contents[2].set_index("CriteriaID")
@@ -581,7 +554,7 @@ class MainWindow(QMainWindow):
         #Clean default MainWidgets pages
         M_Operate_GUI_Elements.CleanStackedWidget(self.ui.Functional_MainWidget)
 
-        # Populate the Functional_MainWidget with objectives and criteria from REFUSS_DB
+        # Populate the Functional_MainWidget with objectives and criteria from RESILISTORM_DB
         self.populate_Functional_objective_pages()
 
         self.FunctionalMetricBlocks = {}
@@ -598,7 +571,7 @@ class MainWindow(QMainWindow):
                                                                        self.SituationSetup,
                                                                        STUDY_DB,
                                                                        self.Study.Directory,
-                                                                       REFUSS_DB)
+                                                                       RESILISTORM_DB)
 
         self.SituationGenerator.situationsModified.connect(self.update_situations)  #when situations are changed, self.Study.Situations are updated due to signal emission
    
@@ -802,10 +775,10 @@ class MainWindow(QMainWindow):
         temp_DB.close()
 
     def get_indicators_libraries(self):
-        self.IndicatorsLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "IndicatorsLibrary")
+        self.IndicatorsLibrary = M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "IndicatorsLibrary")
         self.IndicatorsLibrary.set_index("IndicatorID", inplace=True)
 
-        self.IndicatorsClassesLibrary = M_OperateDatabases.fetch_table_from_database(REFUSS_DB, "IndicatorsClassesLibrary")
+        self.IndicatorsClassesLibrary = M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "IndicatorsClassesLibrary")
         self.IndicatorsClassesLibrary.set_index("IndicatorClassID", inplace=True)
         
     def update_indicators_setup(self):
@@ -814,7 +787,7 @@ class MainWindow(QMainWindow):
 
     def populate_Functional_objective_pages(self):
         """
-        Populates the main widgets with objective pages based on the objectives retrived from the REFUSS_DB.
+        Populates the main widgets with objective pages based on the objectives retrived from the RESILISTORM_DB.
 
         """
 
@@ -854,7 +827,7 @@ class MainWindow(QMainWindow):
 
     def populate_Functional_criterion_pages(self):
         """
-        Populates the UI with criterion pages based on the criteria, metrics, and metric options retrieved from the REFUSS_DB.
+        Populates the UI with criterion pages based on the criteria, metrics, and metric options retrieved from the RESILISTORM_DB.
 
         """
         criteria_sorted = self.criteria.sort_values(by = "CriteriaID", ascending = True)
@@ -1272,7 +1245,7 @@ class MainWindow(QMainWindow):
                 
         if type == "new":
             Situation = self.Study.Situations[situation_id]    
-            M_OperateDatabases.createSituationTables(REFUSS_DB, STUDY_DB, temp_DB, Situation)
+            M_OperateDatabases.createSituationTables(RESILISTORM_DB, STUDY_DB, temp_DB, Situation)
             M_OperateDatabases.fillMetricAnswersDatabase(temp_DB, self.metrics)
             temp_DB.close()
             print(f"File {situation_id}-SITUATION.db created.")
@@ -1625,7 +1598,7 @@ class MainWindow(QMainWindow):
         #             MultiBar = True)
 
     def closeEvent(self, Event):
-        atexit.register(M_OperateDatabases.closeDatabaseConnections, [REFUSS_DB, STUDY_DB, ANSWERS_DB])
+        atexit.register(M_OperateDatabases.closeDatabaseConnections, [RESILISTORM_DB, STUDY_DB, ANSWERS_DB])
         super().closeEvent(Event)
 
 class Study():
@@ -1955,7 +1928,7 @@ def updateHazardTableViews(StackedWidget: QStackedWidget):
 
     if NrHazards > 0 and NrScenarios > 0:
         queryAnswers = QSqlQuery(ANSWERS_DB)
-        queryLibrary = QSqlQuery(REFUSS_DB)
+        queryLibrary = QSqlQuery(RESILISTORM_DB)
 
         if queryAnswers.exec("SELECT HazardName, HazardUnit FROM HazardSetup"):
             hazard_data = []  # List to store hazard data
@@ -2131,7 +2104,7 @@ def copy_and_rename_file(source_file, destination_directory, new_file_name):
     return new_file_path
 
 def main():
-    global REFUSS_DB, STUDY_DB, ANSWERS_DB, temp_DB
+    global RESILISTORM_DB, STUDY_DB, ANSWERS_DB, temp_DB
 
     app = QApplication(sys.argv)
 
@@ -2140,7 +2113,7 @@ def main():
 
     if Welcome_result == QDialog.Accepted:
 
-        REFUSS_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection1")
+        RESILISTORM_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection1")
         STUDY_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection2")
         ANSWERS_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection3")
         temp_DB = QSqlDatabase.addDatabase("QSQLITE", "TemporaryConnection")
