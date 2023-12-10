@@ -24,7 +24,7 @@ class IndicatorsSelection(QMainWindow):
                  IndicatorsClassesLibrary: pd.DataFrame,
                  IndicatorsLibrary: pd.DataFrame,
                  IndicatorsSetup: pd.DataFrame,
-                 answers_db: QSqlDatabase,):
+                 answers_db: QSqlDatabase):
         super().__init__()
         self.indicators_classes_library = IndicatorsClassesLibrary
         self.indicators_library = IndicatorsLibrary
@@ -39,7 +39,7 @@ class IndicatorsSelection(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("Performance Indicators Selection")
+        # self.setWindowTitle("Performance Indicators Selection")
                         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -182,7 +182,6 @@ def load_selected_indicators(IndicatorsSetup: pd.DataFrame):
 
     return selected_indicators
  
-
 def flatten_dict(dict):
     flattened_list = [item for sublist in dict.values() for item in sublist]    
     return flattened_list

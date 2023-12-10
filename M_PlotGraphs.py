@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
-def plotSceariosResilience(DataFrame: pd.DataFrame, xScale: int, DestinyWidget: QWidget):
+def _OLD_plotSceariosResilience(DataFrame: pd.DataFrame, xScale: int, DestinyWidget: QWidget):
 
     PerformanceResiliencePlot = M_GraphClasses.ResilienceHorizontalBarGraphWidget(DataFrame, xScale)
 
@@ -29,7 +29,7 @@ def plotSceariosResilience(DataFrame: pd.DataFrame, xScale: int, DestinyWidget: 
 
     return PerformanceResiliencePlot
 
-def plotHorizontalBars(DataFrame: pd.DataFrame, labelColumn: str, dataColumn: str, xScale: int, DestinyWidget: QWidget, MultiBar: bool, yPrefix: str = "Crit. "):
+def _OLD_plotHorizontalBars(DataFrame: pd.DataFrame, labelColumn: str, dataColumn: str, xScale: int, DestinyWidget: QWidget, MultiBar: bool, yPrefix: str = "Crit. "):
     #int = 100 ou 1
     
     layout = DestinyWidget.layout()
@@ -68,7 +68,7 @@ def plotHorizontalBars(DataFrame: pd.DataFrame, labelColumn: str, dataColumn: st
         MultiBarPlot = M_GraphClasses.MultiHorizontalBarGraphWidget(Categories, Values, xScale)
         layout.addWidget(MultiBarPlot)
         
-def plotHorizontalBars2(DataFrame: pd.DataFrame,
+def plotHorizontalFunctionalBars(DataFrame: pd.DataFrame,
                         labelColumn: str,
                         DestinyWidget: QWidget,
                         Type: str,
@@ -110,12 +110,20 @@ def plotHorizontalBars2(DataFrame: pd.DataFrame,
                 colors = ["","#D6DBDF", "#808080"],
                 xmax = xScale))  
 
-def plotResilienceCircle(DataFrame: pd.DataFrame, DestinyWidget: QWidget):
+def plotResilienceCircle(DataFrame, DestinyWidget: QWidget):
     
-    Res_plotter = M_GraphClasses.CircularGraphWidget(
-        data = DataFrame.loc['1', ["Rating", "Space","Missing"]],
-        colors = ["", "#D6DBDF", "#808080"])
-
+    if isinstance(DataFrame, pd.DataFrame):
+        Res_plotter = M_GraphClasses.CircularGraphWidget(
+            data = DataFrame.loc['1', ["Rating", "Space","Missing"]],
+            colors = ["", "#D6DBDF", "#808080"])
+    else:
+        data = pd.DataFrame(index = ['2'], columns = ["Rating", "Space"])
+        data.at["2", "Rating"] = DataFrame
+        data.at["2", "Space"]  = 1 - DataFrame
+        Res_plotter = M_GraphClasses.CircularGraphWidget(
+            data = data.loc['2', ["Rating", "Space"]],
+            colors = ["", "#D6DBDF"])
+        
     Res_plotter.animateWedge()
 
     layout = DestinyWidget.layout()
@@ -130,10 +138,14 @@ def plotResilienceCircle(DataFrame: pd.DataFrame, DestinyWidget: QWidget):
     layout.setSpacing(0)
     layout.addWidget(Res_plotter)
     
-def plotPerformances(DataFrame: pd.DataFrame, xScale: int, DestinyWidget: QWidget):
+def plotPerformances(DataFrame: pd.DataFrame, Legend: pd.DataFrame, DestinyWidget: QWidget):
     
-    ScatterPlotter = M_GraphClasses.ScatterPlotWidget(DataFrame, xScale)
-
+    
+    if len(DataFrame.index) > 1:
+        PerformancePlot = M_GraphClasses.ScatterPerformancePlotWidget(DataFrame, Legend)
+    elif len(DataFrame.index) == 1:
+        PerformancePlot = M_GraphClasses.BarPerformancePlotWidget(DataFrame, Legend)
+    
     layout = DestinyWidget.layout()
     
     if layout is None:
@@ -143,12 +155,10 @@ def plotPerformances(DataFrame: pd.DataFrame, xScale: int, DestinyWidget: QWidge
         while layout.count():
             item = layout.takeAt(0)
             widget = item.widget()
-            if widget is not None:
+            if widget is not None:  
                 widget.setParent(None)
-
-    layout.addWidget(ScatterPlotter)
+    
+    layout.addWidget(PerformancePlot)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
     DestinyWidget.setLayout(layout)
-
-    return ScatterPlotter

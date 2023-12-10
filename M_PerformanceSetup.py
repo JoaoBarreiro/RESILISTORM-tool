@@ -1,217 +1,396 @@
 from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
-                               QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup
+                               QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup, QComboBox, QTableView, QMenu,
+                               QStyledItemDelegate, QHeaderView, QScrollArea, QAbstractItemView
                                )
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+from PySide6.QtGui import QAction
 
-
-import M_IndicatorsSelection
-import M_HazardClasses
-import M_OperateDatabases
+from M_IndicatorsSelection import (IndicatorsSelection, flatten_dict)
+from M_OperateDatabases import updateB1TableUses
 
 from W_SetupWindow import Ui_SetupWindow
 from M_Fonts import MyFont
 
+import pandas as pd
 
 import re
 
-class Ui_PerformanceSetup(QMainWindow):
+class IndicatorsSelection(QWidget):
     
-    windowClosed = Signal()
+    IndicatorsSelectionChanged = Signal(pd.DataFrame)
     
-    def __init__(self, IndicatorsData: dict, Answers_Database: QSqlDatabase):
+    def __init__(self,
+                 IndicatorsClassesLibrary: pd.DataFrame,
+                 IndicatorsLibrary: pd.DataFrame,
+                 IndicatorsSetup: pd.DataFrame,
+                 study_db: QSqlDatabase):
         super().__init__()
-        self.ui = Ui_SetupWindow()
-        self.ui.setupUi(self)
-        self.setWindowTitle("Performace Setup")
-        
-        self.indicators = IndicatorsData
-        self.answers_db = Answers_Database
+        self.indicators_classes_library = IndicatorsClassesLibrary
+        self.indicators_library = IndicatorsLibrary
+        self.indicators_setup = IndicatorsSetup.copy(deep = True)
+        self.study_db = study_db
+
+        self.radio_button_groups = {}  # Dictionary to manage radio button groups for each class
+                
+        self.selected_indicators = load_selected_indicators(self.indicators_setup)  
+
+        self.init_ui()
+
+    def init_ui(self):                      
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        top_text = "Select performance indicators:"
+        top_label = QLabel(top_text)
+        top_label.setFont(MyFont(9, True))
+        layout.addWidget(top_label)
+                         
+        # Create the UI elements and check if indicators are already selected               
+        for class_id, class_prop in self.indicators_classes_library.iterrows():
+            class_name = class_prop['IndicatorClassName']
+            exclusive = class_prop['Exclusive']
+            
+            label = QLabel(class_name)
+            label.setFont(MyFont(10, True))
+            layout.addWidget(label)
+
+            if class_id not in self.selected_indicators:
+                self.selected_indicators[class_id] = []
+
+            # Create a frame to group the radio buttons and checkboxes
+            frame = QFrame()
+            frame.setFrameShape(QFrame.Box)
+            frame.setObjectName(class_name)
+            #frame.setFrameShadow(QFrame.Raised)
+            frame.setStyleSheet("background-color: rgb(255, 255, 255);")
+            
+            # Create a layout for the frame
+            frame_layout = QVBoxLayout(frame)
+            
+            if exclusive == 'YES':    
+                # Create a button group to manage radio buttons for each class
+                button_group = QButtonGroup()
+                button_group.setObjectName(class_name)
+                button_group.setExclusive(False)
     
-        if not self.answers_db.isValid():
+                self.radio_button_groups[class_name] = button_group
+            
+            for indicator_id, indicator in self.indicators_library.iterrows():
+                
+                if indicator["IndicatorClass"] == class_name:
+                
+                    indicator_name = indicator["ShowName"]
+
+                    if exclusive == 'YES':
+                        radiobutton = QRadioButton(text = indicator_name, parent = frame)
+                        radiobutton.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property          
+                        
+                        radiobutton.clicked.connect(self.handle_radio_clicked)
+                            
+                        radiobutton.toggled.connect(lambda checked, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, checked, class_id))
+                                                    
+                        button_group.addButton(radiobutton)
+                        frame_layout.addWidget(radiobutton)
+
+                        # Check if the indicator is previously selected and set the radio button accordingly
+                        if indicator_id in self.selected_indicators[class_id]:
+                            radiobutton.setChecked(True)
+                        
+                    else:
+                        checkbox = QCheckBox(text = indicator_name, parent = frame)
+                        checkbox.setProperty("indicator_id", indicator_id)  # Set the IndicatorID property
+                        checkbox.stateChanged.connect(lambda state, id=indicator_id, class_id = class_id: self.handle_indicator_selection(id, state == 2, class_id))
+
+                        frame_layout.addWidget(checkbox)
+                        
+                        # Check if the indicator is previously selected and set the checkbox accordingly
+                        if indicator_id in self.selected_indicators[class_id]:
+                            checkbox.setChecked(True)       
+                
+                layout.addWidget(frame)
+            
+        layout.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+    def handle_radio_clicked(self):
+        sender = self.sender()
+        button_group = self.radio_button_groups.get(sender.parent().objectName())  # Get the button group of the sender
+        if sender.isChecked():
+            # Uncheck all other radio buttons in the same group
+            for button in button_group.buttons():
+                if button is not sender:
+                    button.setChecked(False)
+                               
+    def handle_indicator_selection(self, indicator_id, selected, class_id):
+        if selected:
+            if indicator_id not in self.selected_indicators[class_id]:
+                self.selected_indicators[class_id].append(indicator_id)
+        else:
+            if indicator_id in self.selected_indicators[class_id]:
+                self.selected_indicators[class_id].remove(indicator_id)
+        
+        self.update_indicators_state()
+        self.IndicatorsSelectionChanged.emit(self.indicators_setup)
+        #print(self.selected_indicators)
+
+    def update_indicators_state(self, ):
+        try:
+            query = QSqlQuery(self.study_db)
+
+            selected_ids = flatten_dict(self.selected_indicators)
+            # Create a dictionary where keys are IndicatorIDs and values are 'True' or 'False'
+            selected_states = {indicator_id: 1 if indicator_id in selected_ids else 0 for indicator_id in self.indicators_library.index.to_list()}
+
+            # Execute the SQL UPDATE statement for each IndicatorID
+            for indicator_id, selected_state in selected_states.items():
+                query.prepare("UPDATE IndicatorsSetup SET SelectedState = :selectedState WHERE IndicatorID = :indicatorID")
+                query.bindValue(":selectedState", selected_state)
+                query.bindValue(":indicatorID", indicator_id)
+                if not query.exec():
+                    print("Update failed:", query.lastError().text())
+                    break
+
+            self.study_db.transaction()
+            if not self.study_db.commit():
+                print("Commit failed in update_indicators_state", self.study_db.lastError().text())
+
+        except Exception as e:
+            print("Error:", str(e))        
+
+        for indicator_id, indicator in self.indicators_setup.iterrows():
+            if indicator_id in flatten_dict(self.selected_indicators):
+                self.indicators_setup.at[indicator_id, "SelectedState"] = 1
+            else:
+                self.indicators_setup.at[indicator_id, "SelectedState"] = 0
+        #print(self.indicators_setup)
+        
+def load_selected_indicators(IndicatorsSetup: pd.DataFrame):
+    selected_indicators = {}
+    
+    selected_df = IndicatorsSetup[IndicatorsSetup["SelectedState"] == 1]
+    
+    for indicator_id, indicator in selected_df.iterrows():
+        class_id = re.sub(r'\d', '', indicator_id)
+        if class_id not in selected_indicators:
+            selected_indicators[class_id] = []
+        selected_indicators[class_id].append(indicator_id)
+
+    return selected_indicators
+ 
+def flatten_dict(dict):
+    flattened_list = [item for sublist in dict.values() for item in sublist]    
+    return flattened_list
+
+class PerformanceSetup(QWidget):
+    
+    def __init__(self,
+                 IndicatorsClassesLibrary: pd.DataFrame,
+                 IndicatorsLibrary: pd.DataFrame,
+                 IndicatorsSetup: pd.DataFrame,
+                 study_db: QSqlDatabase,
+                 IndicatorsSelector: IndicatorsSelection):
+        super().__init__()
+
+        self.indicators_classes = IndicatorsClassesLibrary.copy(deep=True)
+        self.indicators_library = IndicatorsLibrary.copy(deep=True)
+        self.indicators_setup = IndicatorsSetup         #changes commited within the class will reflect on the original database
+        self.indicator_selector = IndicatorsSelector
+        
+        self.study_db = study_db
+    
+        if not self.study_db.isValid():
             QMessageBox.critical(self, "Database Error", "Invalid database connection.")
             return
-        if not self.answers_db.isOpen():
-            if not self.answers_db.open():
+        if not self.study_db.isOpen():
+            if not self.study_db.open():
                 QMessageBox.critical(self, "Database Error", "Failed to open the database in Ui_PerformanceSetup.")
                 return
-  
-        # Create a QSqlTableModel for scenarios
-        self.scenarios_model = QSqlTableModel(self, self.answers_db)
-        self.scenarios_model.setTable("ScenarioSetup")
-        self.scenarios_model.setEditStrategy(QSqlTableModel.OnFieldChange)  
-        # Fetch the data from the table
-        if not self.scenarios_model.select():
-            QMessageBox.critical(self, "Database Error", "Failed to fetch data from the ScenarioSetup table in Create a QSqlTableModel.")
-            return
-       
-        # Set top labels font
-        self.ui.scenarios_label.setFont(MyFont(12, True))
-        self.ui.indicators_label.setFont(MyFont(12, True))
         
-        #
-        scenarios_scroll_widget = QWidget()
-        indicators_scroll_widget = QWidget()
-        
-        self.scenarios_scroll_layout = QVBoxLayout(scenarios_scroll_widget)
-        self.scenarios_scroll_layout.setSpacing(0)
-        self.scenarios_scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
-        
-        self.indicators_scroll_layout = QVBoxLayout(indicators_scroll_widget)
-        self.indicators_scroll_layout.setSpacing(0)
-        self.indicators_scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
-        
-        # Create a scroll area for scenarios and indicators layouts
-        self.ui.scenarios_scroll_area.setWidget(scenarios_scroll_widget)
-        self.ui.scenarios_scroll_area.setWidgetResizable(True)
-        self.ui.scenarios_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.ui.scenarios_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.ui.scenarios_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.ui.scenarios_scroll_area.setFrameShape(QFrame.StyledPanel)
-        
-        self.ui.indicators_scroll_area.setWidget(indicators_scroll_widget)
-        self.ui.indicators_scroll_area.setWidgetResizable(True)
-        self.ui.indicators_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.ui.indicators_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.ui.indicators_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.ui.indicators_scroll_area.setFrameShape(QFrame.StyledPanel)
- 
- 
-        self.existing_scenarios = []
-        self.selected_indicators = M_IndicatorsSelection.load_selected_indicators(self.answers_db)
+        #get selected indicators dict
+        self.selected_indicators = load_selected_indicators(self.indicators_setup) 
         self.classes_widgets = {}
         
-        # Load existing scenarios from the database to self.existing_scenarios and create respective custom expandable widgets
-        self.load_existing_scenarios()
+        self.setupUi() 
         
         # Load exisiting classes of the database to self.classes_widgets and create respective custom expandable widgets
         # do not forget the deaulft widget of "No indicators selected within this category"
-        self.load_classes()
+        self.load_classes_setup()
                
         # Verify which class has selected indicators and which indicators selected within each class
         # show widget of selecteced indicators and hide the others by calling the self.classes_widgets .show() or .hide()
         # this function is also called when the user closes the indicators selection window
         self.filter_selected_indicators()
-                
-        #Set add buttons actions
-        self.ui.add_scenario_button.clicked.connect(self.add_scenario)
-        self.ui.add_indicator_button.clicked.connect(self.set_indicators)
 
-    def set_indicators(self):
-        #verify/test if IndicatorsSelectionWindow must be 'self.'
-        IndicatorsSelectionWindow = M_IndicatorsSelection.IndicatorsSelection(self.indicators, self.answers_db)
-        IndicatorsSelectionWindow.windowClosed.connect(self.filter_selected_indicators)
-        IndicatorsSelectionWindow.show()
-        self.selected_indicators = IndicatorsSelectionWindow.selected_indicators
-        
-    def add_scenario(self):
-        while True:
-            new_label, ok = QInputDialog.getText(self, "Add scenario", "New scenario name:")
-            AnswerValidation, message = ValidateAnswerText(new_label, self.existing_scenarios)
-            if ok:
-                if AnswerValidation:
-                    expandable_element = ExpandableScenarioSetup(label_text = new_label, Performance_setup = self)
-                    
-                    self.AddScenarioToDatabase(new_label)                   
-                    
-                    # Connect the custom signal to update the scenario data in the database
-                    expandable_element.formFieldTextChanged.connect(self.updateDatabaseField)
-                    
-                    # Connect the removedElement signal to the removeScenarioFromDatabase method
-                    expandable_element.removedElement.connect(self.removeScenarioFromDatabase)
-                    
-                    # Connect the custom signal to update the scenario name in the database
-                    expandable_element.changedLabel.connect(self.updateScenarioOfTable)                   
-
-                    self.scenarios_scroll_layout.insertWidget(self.scenarios_scroll_layout.count() - 1, expandable_element)
-                    
-                    break       
-                else:
-                    warning_dialog = WarningDialog(f'{message}')
-                    warning_dialog.exec()
-            else:
-                break       
-
-    def load_existing_scenarios(self):      
-        query = QSqlQuery(self.answers_db)
-        
-        if query.exec("SELECT * FROM ScenarioSetup"):
-            while query.next():
-                scenario_id = query.value(0)
-                scenario_name = query.value(1)
-                system_config = query.value(2)
-                rainfall = query.value(3)
-                outfall = query.value(4)
-                comment = query.value(5)
-
-                self.existing_scenarios.append(scenario_name)
-                
-                expandable_element = ExpandableScenarioSetup(label_text = scenario_name, Performance_setup = self)
-                
-                # Connect the custom signal to update the database
-                expandable_element.formFieldTextChanged.connect(self.updateDatabaseField)
-                
-                # Connect the removedElement signal to the removeScenarioFromDatabase method
-                expandable_element.removedElement.connect(self.removeScenarioFromDatabase)
-                
-                # Connect the custom signal to update the scenario name in the database
-                expandable_element.changedLabel.connect(self.updateScenarioOfTable)     
-
-                # Loop through the form field labels and set the existing data
-                for label, data in [("System configuration:", system_config),
-                                    ("Rainfall:", rainfall),
-                                    ("Outfall conditions:", outfall),
-                                    ("Comments:", comment)]:
-                    if label in expandable_element.form_fields:
-                        expandable_element.form_fields[label].setText(data)
+        self.indicator_selector.IndicatorsSelectionChanged.connect(self.update_indicators_setup)
     
-                self.scenarios_scroll_layout.insertWidget(self.scenarios_scroll_layout.count() - 1, expandable_element)
-
-        else:
-            error_message = query.lastError().text()
-            print(f"Query execution failed: {error_message} in load_existing_scenarios")            
-
-    def load_classes(self):     
-              
-        DatabaseClasses = self.indicators['indicators_classes'].sort_values(by = "Order")   
-        IndicatorsLibrary = self.indicators['indicators_library']
+    def setupUi(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        top_text = "Set indicators settings:"
+        top_label = QLabel(top_text)
+        top_label.setFont(MyFont(9, True))
+        layout.addWidget(top_label)
         
-        IndicatorsSetup = M_OperateDatabases.fetch_table_from_database(self.answers_db, "IndicatorsSetup")
-        IndicatorsSetup.set_index("IndicatorID")
-                           
-        for class_id, setting in DatabaseClasses.iterrows():
+        self.scroll_content_widget = QWidget()
+        self.indicators_scroll_layout = QVBoxLayout(self.scroll_content_widget) # to add things
+        #self.indicators_scroll_layout.setContentsMargins(10, 0, 20, 0)
+        self.indicators_scroll_layout.setSpacing(10)
+        self.indicators_scroll_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+                
+        self.indicators_scroll_area = QScrollArea()
+        self.indicators_scroll_area.setWidget(self.scroll_content_widget)
+        self.indicators_scroll_area.setWidgetResizable(True)
+        self.indicators_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.indicators_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.indicators_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        #self.indicators_scroll_area.setFrameShape(QFrame.StyledPanel)         
+    
+        layout.addWidget(self.indicators_scroll_area)
+
+    def load_classes_setup(self):
+
+        for class_id, setting in self.indicators_classes.iterrows():
             class_name = setting['IndicatorClassName']
-                              
-            expandable_element = ExpandableClassSetup(label_text = class_name, Performance_setup = self)
-        
+            
+            expandable_element = ExpandableClassSetup(label_text = class_name)
+            
+            SRP_check = False
+            
+            for indicator_id, indicator in self.indicators_setup.iterrows():
+                indicator_class_id = re.sub(r'\d', '', indicator_id)
+                                
+                if indicator_class_id == class_id:
+                    indicator_widget = self.create_indicators_setup_widgets(indicator_id)
+                    if SRP_check == False or indicator_class_id != "SRP":
+                        expandable_element.properties_layout.addWidget(indicator_widget)
+                        self.classes_widgets[class_id] = expandable_element
+                    if indicator_class_id == "SRP":
+                        SRP_check = True
+                    # If one of SRP indicators is selected, only show the unit info once (evit repeating)
+                    # if indicator_id in ["SRP1", "SRP2", "SRP3"]:
+                    #     break   
+            expandable_element.setVisible(True)
+            
+            # Add widget to layout
             self.indicators_scroll_layout.insertWidget(self.indicators_scroll_layout.count() - 1, expandable_element)
-            
-            self.classes_widgets[class_id] = expandable_element
-            
-            for indicator_id, _ in IndicatorsLibrary[IndicatorsLibrary['IndicatorClass'] == class_name].iterrows():
-                indicator_widget = M_HazardClasses.create_indicators_setup_widgets(IndicatorsLibrary, indicator_id, self.answers_db)
-                indicator_widget.setObjectName(indicator_id)
-                self.classes_widgets[class_id].properties_layout.addWidget(indicator_widget)
 
-                # If one of SRP indicators is selected, only show the unit info once (evit repeating)
-                if indicator_id in ["SRP1", "SRP2", "SRP3"]:
-                    break
-            
-
-    def filter_selected_indicators(self):
+        # debugging purpose - do not delete
+        # for i in range(self.indicators_scroll_layout.count()):
+        #     element = self.indicators_scroll_layout.itemAt(i)
+        #     widget = element.widget()
+        #     layout = element.layout()
+        #     print(f"Item {i}: Widget - {widget}, Layout - {layout}")           
+                 
+    def create_indicators_setup_widgets(self, indicator_id):
+        indicator_widget = QWidget()
+        indicator_widget.setObjectName(indicator_id)
+        indicator_layout = QVBoxLayout(indicator_widget)
+        indicator_layout.setContentsMargins(0, 0, 0, 0)      
+          
+        referece_text = self.indicators_library.at[indicator_id, "Reference"]
+        indicator_text = f'Methodology: {referece_text}'
+        indicator_label = QLabel(indicator_text)
+        indicator_label.setFont(MyFont(10, True))
+        indicator_layout.addWidget(indicator_label)
         
-        DatabaseClasses = self.indicators['indicators_classes'].sort_values(by = "Order")
+        possible_units = self.indicators_library.at[indicator_id, "PossibleUnits"].split("; ")
+        
+        unit_layout = QHBoxLayout()
+        indicator_layout.addLayout(unit_layout)
+
+        #set the model
+        model = QSqlTableModel(db = self.study_db)
+        model.setTable("IndicatorsSetup")
+        model.select()
+        
+        # Find the corresponding unit in the model
+        model_column_name = "SelectedUnit"
+                            
+        if len(possible_units) > 1:
+            unit_text = 'Select the data unit:'
+            unit_label = QLabel(unit_text)
+            unit_layout.addWidget(unit_label)
+            
+            unit_combo_box = QComboBox()
+            
+            unit_combo_box.addItems(possible_units)
+            
+            model_row = find_model_row(model, 'IndicatorID', indicator_id)
+            
+            if model_row >= 0:
+                # Get the unit value from the model
+                initial_unit_value = model.data(model.index(model_row, model.fieldIndex(model_column_name)))
+                if initial_unit_value and initial_unit_value in possible_units:
+                    initial_index = possible_units.index(initial_unit_value)
+                    unit_combo_box.setCurrentIndex(initial_index)
+                else:
+                    update_model(indicator_id, possible_units[0], model, model_column_name)
+
+            unit_combo_box.currentIndexChanged.connect(lambda index: update_model(indicator_id, possible_units[index], model, model_column_name))
+            unit_layout.addWidget(unit_combo_box)
+            
+        else:
+            update_model(indicator_id, possible_units[0], model, model_column_name)
+            unit_text = f'Data unit: {possible_units[0]}'
+            unit_label = QLabel(unit_text)
+            unit_layout.addWidget(unit_label)   
+                
+        if indicator_id in ["P1", "P2", "V1"]:
+            pass
+        elif indicator_id in ["B1"]:
+            self.CustomBuilding = B1UsesSetupTable(self.study_db)
+            indicator_layout.addWidget(self.CustomBuilding)
+            # CustomWaterHeigts = B1WaterHeightsSetupTable(self.study_db)
+            # indicator_layout.addWidget(CustomWaterHeigts)
+        elif indicator_id in ["SRP1", "SRP2", "SRP3"]:
+            pass
+            
+        return indicator_widget               
+
+    def set_selected_indicators(self):
+        self.indicators_classes.sort_values(by = "Order")
         
         SRP_control = False
-        
-        for class_id, _ in DatabaseClasses.iterrows():
+
+        for class_id, _ in self.indicators_classes.iterrows():
             
             layout = self.classes_widgets[class_id].properties_layout
                         
             for i in range(layout.count()):
                 item = layout.itemAt(i)
-                if item.widget().objectName() in M_IndicatorsSelection.flatten_dict(self.selected_indicators):
+                if item.widget().objectName() in flatten_dict(self.selected_indicators):
+                    item.widget().show()
+                    
+                    if item.widget().objectName() in ["SRP1", "SRP2", "SRP3"] and not SRP_control:
+                        SRP_control = True
+                    elif item.widget().objectName() in ["SRP1", "SRP2", "SRP3"] and SRP_control:
+                        item.widget().hide()                        
+                else:
+                    item.widget().hide()
+            
+            if class_id not in self.selected_indicators.keys():
+                self.classes_widgets[class_id].default_label.show()     
+                   
+    def update_indicators_setup(self, IndicatorsSetup: pd.DataFrame):
+        self.indicators_setup = IndicatorsSetup
+        self.filter_selected_indicators()
+        
+    def filter_selected_indicators(self):
+        
+        self.selected_indicators = load_selected_indicators(self.indicators_setup)
+
+        self.indicators_classes.sort_values(by = "Order")
+        
+        SRP_control = False
+
+        for class_id, _ in self.indicators_classes.iterrows():
+            
+            layout = self.classes_widgets[class_id].properties_layout
+                        
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                if item.widget().objectName() in flatten_dict(self.selected_indicators):
                     item.widget().show()
                     
                     if item.widget().objectName() in ["SRP1", "SRP2", "SRP3"] and not SRP_control:
@@ -223,73 +402,7 @@ class Ui_PerformanceSetup(QMainWindow):
             
             if class_id not in self.selected_indicators.keys():
                 self.classes_widgets[class_id].default_label.show()        
-
-    def AddScenarioToDatabase(self, scenario_name):
-        # Insert a new scenario into the database
-        query = QSqlQuery(self.answers_db)
-        
-        if query.exec(f"INSERT INTO ScenarioSetup (ScenarioName) VALUES ('{scenario_name}')"):
-            self.answers_db.commit()  # Commit changes
-            self.existing_scenarios.append(scenario_name)
-        else:
-            error_message = query.lastError().text()
-            print(f"Query execution failed: {error_message}")
-            print(f"Database error type: {query.lastError().type()}")
-            print(f"Database error driver text: {query.lastError().driverText()}")
-            print(f"Database error database text: {query.lastError().databaseText()}")
-
-    def updateDatabaseField(self, label, text):
-        db_column = ""
-        if label == "Rainfall:":
-            db_column = "ScenarioRainfall"
-        elif label == "System configuration:":
-            db_column = "ScenarioSystemConfig"
-        elif label == "Outfall conditions:":
-            db_column = "ScenarioOutfall"
-        elif label == "Comments:":
-            db_column = "ScenarioComment"
-        
-        if db_column != "":
-            scenario_name = self.sender().label.text()  # Get the scenario name from the element
-            query = QSqlQuery(self.answers_db)
-            query.prepare(f"UPDATE ScenarioSetup SET {db_column} = ? WHERE ScenarioName = ?")
-            query.addBindValue(text)
-            query.addBindValue(scenario_name)
-            if query.exec():
-                self.answers_db.commit()  # Commit changes
-            else:
-                error_message = query.lastError().text()
-                print(f"Query execution failed: {error_message} in updateDatabaseField")
-
-    def removeScenarioFromDatabase(self, scenario_name):
-        # Remove existing scenario from the database
-        query = QSqlQuery(self.answers_db)
-        if query.exec(f"DELETE FROM ScenarioSetup WHERE ScenarioName = '{scenario_name}'"):
-            self.answers_db.commit()  # Commit changes
-            self.existing_scenarios.remove(scenario_name)
-        else:
-            error_message = query.lastError().text()
-            print(f"Query execution failed: {error_message} in removeScenarioFromDatabase")
-            
-    def updateScenarioOfTable(self, old_label, new_label):
-        query_ID = QSqlQuery(self.answers_db)
-        query_ID.prepare("SELECT ScenarioID FROM ScenarioSetup WHERE ScenarioName = ?")
-        query_ID.addBindValue(old_label)
-        query_ID.exec()
-        
-        if query_ID.next():
-            scenario_id = query_ID.value(0)
-            
-            query_update = QSqlQuery(self.answers_db)
-            query_update.prepare(f"UPDATE ScenarioSetup SET ScenarioName = ? WHERE ScenarioID = ?")
-            query_update.addBindValue(new_label)
-            query_update.addBindValue(scenario_id)
-            query_update.exec()         
-    
-    def closeEvent(self, event):
-        self.windowClosed.emit()
-        event.accept()            
-                                   
+                                            
 def ValidateAnswerText(text: str, list: list):
     if not text.strip():
         message = "Scenario name must not be empty!"
@@ -303,176 +416,20 @@ def ValidateAnswerText(text: str, list: list):
     else:
         message = "OK!"
         return True, message
-        
-class ExpandableScenarioSetup(QWidget):
-    formFieldTextChanged = Signal(str, str)  # Pass two strings: the label and the new text
-    removedElement = Signal(str)
-    changedLabel = Signal(str, str)
-    
-    def __init__(self,  label_text: str, Performance_setup: Ui_PerformanceSetup):
+
+class ExpandableClassSetup(QWidget):  
+    def __init__(self,  label_text: str):
         super().__init__()
-        self.performance_setup = Performance_setup
         self.setup_ui(label_text)
         self.expanded = False
 
     def setup_ui(self, label_text):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        # layout = QVBoxLayout(self)
+        # layout.setContentsMargins(0, 0, 0, 0)
 
         # Create a frame for the header labels and a simple horizontal line
-        header_frame = QFrame(self)
-        header_layout = QVBoxLayout(header_frame)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(0)
-
-        # Create a horizontal layout for the header labels (self.label, self.edit_label, self.expand_label)
-        header_labels_layout = QHBoxLayout()
-
-        # Create a label for the element's text (self.label)
-        self.label = QLabel(label_text, self)
-        self.label.setFont(MyFont(10, True))
-
-        # Create a horizontal spacer to push self.label to the left
-        label_spacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Minimum)
-        
-        # Create a delete button for the element (only visible when expanded)
-        delete_label = QLabel("❌", self)
-        delete_label.setAlignment(Qt.AlignCenter)
-        delete_label.setCursor(Qt.PointingHandCursor)
-        delete_label.mousePressEvent = self.delete_element
-        
-        # Create a label for the ✏️ button (self.edit_label)
-        edit_label = QLabel("✏️", self)
-        edit_label.setAlignment(Qt.AlignCenter)
-        edit_label.setCursor(Qt.PointingHandCursor)
-        edit_label.mousePressEvent = self.edit_label_text
-
-        # Create a label for the expand/collapse arrow (self.expand_label)
-        self.expand_label = QLabel("▼", self)  # Use ▼ for down arrow and ▲ for up arrow
-        self.expand_label.setAlignment(Qt.AlignCenter)
-        self.expand_label.setCursor(Qt.PointingHandCursor)
-        self.expand_label.mousePressEvent = self.toggle_properties
-
-        # Add the labels to the header_labels_layout
-        header_labels_layout.addWidget(self.label)
-        header_labels_layout.addItem(label_spacer)
-        header_labels_layout.addWidget(delete_label)
-        header_labels_layout.addWidget(edit_label)
-        header_labels_layout.addWidget(self.expand_label)
-
-        header_layout.addLayout(header_labels_layout)
-
-        # Create a simple horizontal line
-        line = QFrame(self)
-        line.setFrameShape(QFrame.HLine)
-        header_layout.addWidget(line)
-
-        layout.addWidget(header_frame)
-
-        # Create a widget for the expandable properties (e.g., labels and input fields)
-        self.properties_widget = QWidget(self)
-        self.properties_layout = QFormLayout(self.properties_widget)
-
-        # Add labels and input fields for the form
-        labels = ["Rainfall:", "System configuration:", "Outfall conditions:", "Comments:"]
-        self.form_fields = {}
-
-        for label_text in labels:
-            label = QLabel(label_text, self)
-            input_field = QLineEdit(self)
-            self.form_fields[label_text] = input_field
-            self.form_fields[label_text].textChanged.connect(lambda text, label_text = label_text: self.formFieldTextChanged.emit(label_text, text))
-            self.properties_layout.addRow(label, input_field)
-
-        self.properties_layout.setVerticalSpacing(5)  # Adjust vertical spacing as needed
-        self.properties_widget.hide()
-        
-        header_layout.addWidget(self.properties_widget)
-
-        layout.addWidget(header_frame)
-        
-    def updateDatabase(self, label_text):
-        scenario_name = self.label.text()
-        
-        if label_text == "Rainfall:":
-            table_col = "ScenarioRainfall"
-        elif label_text == "System configuration:":
-            table_col = "ScenarioSystemConfig"
-        elif label_text == "Outfall conditions:":
-            table_col = "ScenarioOutfall"
-        elif label_text == "Comments:":
-            table_col = "ScenarioComment"
-        
-        # Update the "ScenarioRainfall" column in the database
-        query = QSqlQuery(self)
-        query.prepare(f"UPDATE ScenarioSetup SET {table_col} = ? WHERE ScenarioName = ?")
-        query.addBindValue(label_text)
-        query.addBindValue(scenario_name)
-        query.exec()
-        
-    def toggle_properties(self, event):
-        self.expanded = not self.expanded
-        self.properties_widget.setVisible(self.expanded)
-        if self.expanded:
-            self.expand_label.setText("▲")  # Change to up arrow when expanded
-        else:
-            self.expand_label.setText("▼")  # Change to down arrow when collapsed
-
-    def edit_label_text(self, event):
-        while True:
-            new_label, ok = QInputDialog.getText(self, "Edit scenario name", "Enter scenario name:")
-            TextValidation, message = ValidateAnswerText(new_label, self.performance_setup.existing_scenarios)
-            if ok:
-                if TextValidation:
-                    old_scenario_name = self.label.text()
-                    self.performance_setup.existing_scenarios.remove(old_scenario_name)
-                    
-                    self.performance_setup.existing_scenarios.append(new_label)
-                    self.label.setText(new_label)
-                    
-                    self.changedLabel.emit(old_scenario_name, new_label)                  
-                    break
-                
-                else:
-                    warning_dialog = WarningDialog(f'{message}')
-                    warning_dialog.exec()
-            else:
-                break
-
-    def delete_element(self, event):
-        # Show a confirmation dialog
-        confirmation = QMessageBox.question(
-            self,
-            "Delete scenario",
-            f"Are you sure you want to delete the scenario '{self.label.text()}'?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        # If the user confirms the deletion, remove the element
-        if confirmation == QMessageBox.Yes:
-            self.removedElement.emit(self.label.text())
-            self.performance_setup.scenarios_scroll_layout.removeWidget(self)
-            self.deleteLater()
-
-class ExpandableClassSetup(QWidget):
-    formFieldTextChanged = Signal(str, str)  # Pass two strings: the label and the new text
-    removedElement = Signal(str)
-    changedLabel = Signal(str, str)
-    
-    def __init__(self,  label_text: str, Performance_setup: Ui_PerformanceSetup):
-        super().__init__()
-        self.performance_setup = Performance_setup
-        self.setup_ui(label_text)
-        self.expanded = False
-
-    def setup_ui(self, label_text):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create a frame for the header labels and a simple horizontal line
-        header_frame = QFrame(self)
-        Main_layout = QVBoxLayout(header_frame)
+        #Main_frame = QFrame(self)
+        Main_layout = QVBoxLayout(self)
         Main_layout.setContentsMargins(0, 0, 0, 0)
         Main_layout.setSpacing(0)
 
@@ -495,7 +452,6 @@ class ExpandableClassSetup(QWidget):
         # Add the labels to the header_labels_layout
         header_labels_layout.addWidget(self.label)
         header_labels_layout.addItem(label_spacer)
-        
         header_labels_layout.addWidget(self.expand_label)
 
         Main_layout.addLayout(header_labels_layout)
@@ -505,43 +461,20 @@ class ExpandableClassSetup(QWidget):
         line.setFrameShape(QFrame.HLine)
         Main_layout.addWidget(line)
 
-        layout.addWidget(header_frame)
-
         # Create a widget for the expandable properties
         self.properties_widget = QWidget(self)
+        # self.properties_widget.setVisible(True)
         self.properties_layout = QVBoxLayout(self.properties_widget)
         self.properties_layout.setContentsMargins(0, 0, 0, 0)
         
         self.default_label = QLabel("No performance indicator selected within this class.", self)
         self.default_label.setObjectName("DefaultLabel")
         self.properties_layout.addWidget(self.default_label)
-        self.default_label.hide()
+        # self.default_label.setVisible(True)
 
         self.properties_layout.setSpacing(5)  # Adjust vertical spacing as needed
-        self.properties_widget.hide()
         
         Main_layout.addWidget(self.properties_widget)
-
-        layout.addWidget(header_frame)
-        
-    def updateDatabase(self, label_text):
-        scenario_name = self.label.text()
-        
-        if label_text == "Rainfall:":
-            table_col = "ScenarioRainfall"
-        elif label_text == "System configuration:":
-            table_col = "ScenarioSystemConfig"
-        elif label_text == "Outfall conditions:":
-            table_col = "ScenarioOutfall"
-        elif label_text == "Comments:":
-            table_col = "ScenarioComment"
-        
-        # Update the "ScenarioRainfall" column in the database
-        query = QSqlQuery(self)
-        query.prepare(f"UPDATE ScenarioSetup SET {table_col} = ? WHERE ScenarioName = ?")
-        query.addBindValue(label_text)
-        query.addBindValue(scenario_name)
-        query.exec()
         
     def toggle_properties(self, event):
         self.expanded = not self.expanded
@@ -569,4 +502,174 @@ class WarningDialog(QDialog):
         button_layout.addWidget(ok_button)
         layout.addWidget(button_container)  # Add the button container to the main layout
 
+class B1UsesSetupTable(QTableView):
+    
+    #SET THESE SIGNALS ON THE MAIN WINDOW TO UPDATE THE B1 TABLES ACCORDINGLY
+    building_uses_modified = Signal(str, str)
 
+    def __init__(self, study_db: QSqlDatabase):
+        super().__init__()
+        self.db = study_db
+
+        # Create models for tables
+        self.createTable_UserUses()
+
+    def createTable_UserUses(self):
+        # Ensure that the database connection is open before creating the model
+        if not self.db.isOpen():
+            QMessageBox.critical(self, "Database Error", "ANSWERS_DB is not open. - B1UsesSetup")
+            return
+
+        # Define and set the model for UserUses_Table
+        self.user_uses_model = QSqlTableModel(db = self.db)
+        self.user_uses_model.setTable("B1UsesSetup")
+        self.user_uses_model.setEditStrategy(QSqlTableModel.OnManualSubmit)
+
+       # Fetch the data from the table
+        if not self.user_uses_model.select():
+            QMessageBox.critical(self, "Database Error", "Failed to fetch data from the table B1UsesSetup.")
+            return
+
+        self.user_uses_model.setHeaderData(0, Qt.Horizontal, "Custom building use")
+        self.user_uses_model.setHeaderData(1, Qt.Horizontal, "Total size")
+        self.user_uses_model.setHeaderData(2, Qt.Horizontal, "Methodology corresponding use")
+
+        self.setModel(self.user_uses_model)
+        self.resizeColumnsToContents()
+        self.resizeColumnsToContents()
+        self.setEditTriggers(QTableView.AllEditTriggers)
+
+        # Set the delegate for the third column to use ComboBox
+        self.setItemDelegateForColumn(2, B1ComboBoxDelegate(self))
+        #self.setItemDelegate(B1ComboBoxDelegate(self))
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+        # Create context menu
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.showContextMenu)
+ 
+
+        self.user_uses_model.dataChanged.connect(self.handleDataChanged)
+
+    def handleDataChanged(self, top_left, bottom_right, roles):
+        # This is called after the user has finished editing a cell
+        if top_left.column() == 0:
+            row = top_left.row()
+            old_value = self.retrieveOldValue(row, "CostumUse")
+            new_value = self.user_uses_model.data(top_left, Qt.DisplayRole)
+            if old_value != new_value:
+                self.user_uses_model.submitAll()
+                self.user_uses_model.database().commit() 
+                self.building_uses_modified.emit(old_value, new_value)
+               
+    def retrieveOldValue(self, row, column_name):
+        query = QSqlQuery(self.db)
+        if query.exec(f"SELECT {column_name} FROM B1UsesSetup WHERE rowid = {row+1}"):
+            if query.next():
+                return query.value(0)
+        return None
+
+    def addNewRow(self):
+        # Add a new row to the table
+        row = self.user_uses_model.rowCount()
+
+        record = self.user_uses_model.record()
+        record.setValue("CostumUse", "Edit here...")
+
+        #self.user_uses_model.insertRow(row)
+        self.user_uses_model.insertRecord(row, record)
+
+        #self.user_uses_model.submitAll()
+        self.reset()
+        self.user_uses_model.submitAll()
+        self.user_uses_model.select()
+        self.user_uses_model.database().commit() 
+        self.building_uses_modified.emit('', record)
+   
+    def removeCurrentRow(self):
+        # Remove the current row from the table
+        current_row = self.clicked_index.row()
+        old_value = self.user_uses_model.data(self.clicked_index, Qt.DisplayRole)
+        if current_row >= 0:
+            self.user_uses_model.removeRow(current_row)
+        self.user_uses_model.submitAll()
+        self.user_uses_model.select()
+        self.user_uses_model.database().commit()
+        self.building_uses_modified.emit(old_value, '')
+   
+    def showContextMenu(self, pos):
+        table = self.sender()  # Identify the table that triggered the event
+
+        if table == self:
+            model = self.user_uses_model
+            add_label = "Add New Use"
+            remove_label = "Remove Current Use"
+        else:
+            return
+
+        global_pos = table.viewport().mapToGlobal(pos)
+        self.clicked_index = table.indexAt(pos)
+
+        context_menu = QMenu(self)
+        add_new_use_action = QAction(add_label, self)
+        remove_current_use_action = QAction(remove_label, self)
+
+        context_menu.addAction(add_new_use_action)
+        context_menu.addAction(remove_current_use_action)
+
+        # Connect context menu actions to slots
+        add_new_use_action.triggered.connect(lambda: self.addNewRow())
+        remove_current_use_action.triggered.connect(lambda: self.removeCurrentRow())
+
+        context_menu.exec(global_pos)
+
+class B1ComboBoxDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.options = ["Residential", "Commercial", "Industrial"]
+
+    def createEditor(self, parent, option, index):
+        if index.column() == 2:  # Only create an editor for the third column
+            editor = QComboBox(parent)
+            editor.addItems(self.options)
+            return editor
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor, index):
+        if index.column() == 2:  # Set the current index of the ComboBox based on the item data
+            current_data = index.data(Qt.DisplayRole)
+            if current_data in self.options:
+                editor.setCurrentIndex(self.options.index(current_data))
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if index.column() == 2:  # Set the item data based on the current index of the ComboBox
+            model.setData(index, editor.currentText(), Qt.EditRole)
+        else:
+            super().setModelData(editor, model, index)
+        model.submitAll()
+        model.database().commit()
+        
+
+    # def sizeHint(self, option, index):
+    #     if index.column() == 2:  # Adjust the size hint for the ComboBox in the third column
+    #         return QSize(100, 30)
+    #     return super().sizeHint(option, index)
+
+def update_model(IndicatorID, content, model, model_column):
+    
+    model_row = find_model_row(model, 'IndicatorID', IndicatorID)
+    
+    if model_row >= 0:
+        model.setData(model.index(model_row, model.fieldIndex(model_column)), content)
+        model.submitAll()
+
+def find_model_row(model, model_column_name, search_name):
+    # Find the row in the model where the model_column_name value is equal to search_name
+    row = -1
+    for i in range(model.rowCount()):
+        if model.data(model.index(i, model.fieldIndex(model_column_name))) == search_name:
+            row = i
+            break
+    return row   

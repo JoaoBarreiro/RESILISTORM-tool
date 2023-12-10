@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
                                QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup, QComboBox, QTableView, QMenu,
-                               QStyledItemDelegate, QHeaderView, QDoubleSpinBox, QGroupBox, QScrollArea
+                               QStyledItemDelegate, QHeaderView, QDoubleSpinBox, QGroupBox, QScrollArea, QTabWidget
                                )
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QAction
+from matplotlib import layout_engine
 
 from M_IndicatorsSelection import (IndicatorsSelection, flatten_dict)
 from M_OperateDatabases import fetch_table_from_database
@@ -14,26 +15,39 @@ from M_Operate_GUI_Elements import ExpandableSimpleElement, NotExpandableSimpleE
 from W_WeightSetup import Ui_WeightWindow
 from M_Fonts import MyFont
 
-class Ui_WeightSetup(QMainWindow):
+class WeightSetup(QWidget):
     
-    windowClosed = Signal()
-    
-    def __init__(self, AnswersDatabase: QSqlDatabase):
-        super().__init__()
-        self.ui = Ui_WeightWindow()
-        self.ui.setupUi(self)
-        self.setWindowTitle("Weight Setup")
+    def __init__(self, Study_Database: QSqlDatabase):
+        super().__init__()     
+        self.study_db = Study_Database
         
-        self.answers_db = AnswersDatabase
-        
-        self.dimensions = fetch_table_from_database(self.answers_db, "DimensionsWeight")
+        self.dimensions = fetch_table_from_database(self.study_db, "DimensionsWeight")
         self.dimensions.set_index("DimensionID", inplace=True)
-        self.objectives = fetch_table_from_database(self.answers_db, "ObjectivesWeight")
+        self.objectives = fetch_table_from_database(self.study_db, "ObjectivesWeight")
         self.objectives.set_index("ObjectiveID", inplace=True)
-        self.criteria = fetch_table_from_database(self.answers_db, "CriteriaWeight")
+        self.criteria = fetch_table_from_database(self.study_db, "CriteriaWeight")
         self.criteria.set_index("CriteriaID", inplace=True)
         
+        self.setupUi()
         self.create_ui_elements()
+    
+    def setupUi(self):
+        self.weight_setup_tab_widget = QTabWidget()
+        self.dimensions_tab = QWidget() 
+        self.objectives_tab = QWidget()
+        self.criteria_tab = QWidget()
+
+        # Add widgets and layouts for each tab
+        self.weight_setup_tab_widget.addTab(self.dimensions_tab, "Dimensions")
+        self.weight_setup_tab_widget.addTab(self.objectives_tab, "Objectives")
+        self.weight_setup_tab_widget.addTab(self.criteria_tab, "Criteria")
+
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(self.weight_setup_tab_widget)
+        
+        self.weight_setup_tab_widget.currentChanged.connect(self.on_tab_changed)
+        
+        self.current_tab_index = self.weight_setup_tab_widget.currentIndex()
         
     def create_ui_elements(self):
         self.load_weights()
@@ -51,9 +65,8 @@ class Ui_WeightSetup(QMainWindow):
         dimensions_scroll_widget = QWidget()
         dimensions_scroll_area.setWidget(dimensions_scroll_widget)
         
-        dimensions_layout = QVBoxLayout()
+        dimensions_layout = QVBoxLayout(dimensions_scroll_widget)
         dimensions_layout.addItem(QSpacerItem(10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding))
-        dimensions_scroll_widget.setLayout(dimensions_layout)
         
         objectives_scroll_area = QScrollArea()
         objectives_scroll_area.setWidgetResizable(True)
@@ -168,35 +181,60 @@ class Ui_WeightSetup(QMainWindow):
                     Criteria_objective_element.content_layout.insertLayout(Criteria_objective_element.content_layout.count()-1, criterion_layout)
 
                     self.criteria_spin_dict[dimensionID][ObjectiveID][criteriaID] = criteria_spinbox
-   
 
-        self.ui.Dimensions_tab.setLayout(dimensions_layout)
-        self.ui.Objectives_tab.setLayout(global_objectives_layout)
-        self.ui.Criteria_tab.setLayout(global_criteria_layout)
+        
+        dimensions_scroll_layout = QVBoxLayout(self.dimensions_tab)
+        dimensions_scroll_layout.addWidget(dimensions_scroll_area)
+        self.dimensions_tab.setLayout(dimensions_scroll_layout) 
+        
+        objectives_scroll_layout = QVBoxLayout(self.objectives_tab)
+        objectives_scroll_layout.addWidget(objectives_scroll_area)
+        self.objectives_tab.setLayout(objectives_scroll_layout)
+        
+        criteria_scroll_layout = QVBoxLayout(self.criteria_tab)
+        criteria_scroll_layout.addWidget(criteria_scroll_area)
+        self.criteria_tab.setLayout(criteria_scroll_layout)
 
+        # Add the layouts for each tab to the corresponding scroll area
+        self.dimensions_tab.setLayout(dimensions_scroll_layout)
+        self.objectives_tab.setLayout(global_objectives_layout)
+        self.criteria_tab.setLayout(global_criteria_layout)
+        
+        # Set the layout for the WeightSetupTabWidget
+        # main_layout = QVBoxLayout(self)
+        # main_layout.addWidget(self.weight_setup_tab_widget)
+        
     def load_weights(self):
-        if not self.answers_db.isValid():
+        if not self.study_db.isValid():
             QMessageBox.critical(self, "Database Error", "Invalid database connection.")
             return
-        if not self.answers_db.isOpen():
-            if not self.answers_db.open():
+        if not self.study_db.isOpen():
+            if not self.study_db.open():
                 QMessageBox.critical(self, "Database Error", "Failed to open the database in WeightSetup.")
                 return
         
-        self.DimensionsWeights = fetch_table_from_database(self.answers_db, "DimensionsWeight")
+        self.DimensionsWeights = fetch_table_from_database(self.study_db, "DimensionsWeight")
         self.DimensionsWeights.set_index("DimensionID")
-        self.ObjectivesWeights = fetch_table_from_database(self.answers_db, "ObjectivesWeight")
+        self.ObjectivesWeights = fetch_table_from_database(self.study_db, "ObjectivesWeight")
         self.ObjectivesWeights.set_index("ObjectiveID")
-        self.CriteriaWeights = fetch_table_from_database(self.answers_db, "CriteriaWeight")
+        self.CriteriaWeights = fetch_table_from_database(self.study_db, "CriteriaWeight")
         self.CriteriaWeights.set_index("CriteriaID")
         
-    def closeEvent(self, event):
-        self.windowClosed.emit()
-        if self.verify_spinbox_sum():
+    def on_tab_changed(self):
+        state, message = self.verify_spinbox_sum()
+        if state:
             self.update_weights_database()
-            event.accept()
+            self.current_tab_index = self.weight_setup_tab_widget.currentIndex()
+            return True
         else:
-            event.ignore()
+            self.message_box("Wights sum error", message)
+            
+            # Disconnect the signal temporarily
+            self.weight_setup_tab_widget.currentChanged.disconnect(self.on_tab_changed)
+            self.weight_setup_tab_widget.setCurrentIndex(self.current_tab_index)
+            # Reconnect the signal
+            self.weight_setup_tab_widget.currentChanged.connect(self.on_tab_changed)
+            return False
     
     def verify_spinbox_sum(self):
         
@@ -216,18 +254,19 @@ class Ui_WeightSetup(QMainWindow):
                             criteria_sum += round(crit_w.value(), 3)
 
                     if criteria_sum < 0.99 or criteria_sum > 1:
-                        self.message_box("Criteria Weight Error", f"Sum of Criteria weights in Obj. {obj_id} must be 1.")
-                        return False
+                        message = f"Sum of Criteria weights in Obj. {obj_id} must be 1."
+                        return (False, message)
 
             if objectives_sum < 0.99 or objectives_sum > 1:
-                self.message_box("Objectives Weight Error", f"Sum of Objectives weights in Dim. {dim_id} must be 1.")
-                return False
+                message = f"Sum of Objectives weights in Dim. {dim_id} must be 1."
+                return (False, message)
 
         if dimension_sum < 0.99 or dimension_sum > 1:
-            self.message_box("Dimension Weight Error", "Sum of Dimensions weights must be 1.")
-            return False
+            message = "Sum of Dimensions weights must be 1."
+            return (False, message)
         
-        return True
+        message = "ok"
+        return (True, message)
     
     def message_box(self, title, text):
         msg_box = QMessageBox(self)
@@ -244,7 +283,7 @@ class Ui_WeightSetup(QMainWindow):
     
     def update_weights_database(self):
         
-        query = QSqlQuery(db = self.answers_db)
+        query = QSqlQuery(db = self.study_db)
         query.prepare(f"UPDATE DimensionsWeight SET Weight = ? WHERE DimensionID = ?")
         
         for dim_id, dim_w in self.dimensions_spin_dict.items():
@@ -252,8 +291,8 @@ class Ui_WeightSetup(QMainWindow):
             query.addBindValue(dim_id)
             if not query.exec():
                 print(f"Did not commit changes in Dimension Weights.")
-            else:
-                print(f"Changes in Dimension Weights commited.")
+            # else:
+            #     print(f"Changes in Dimension Weights commited.")
             
         query.prepare(f"UPDATE ObjectivesWeight SET Weight = ? WHERE ObjectiveID = ?")
         
@@ -263,8 +302,8 @@ class Ui_WeightSetup(QMainWindow):
                 query.addBindValue(obj_id)
                 if not query.exec():
                     print(f"Did not commit changes in Objective Weights.")
-                else:
-                    print(f"Changes in Objective Weights commited.")
+                # else:
+                #     print(f"Changes in Objective Weights commited.")
                 
         query.prepare(f"UPDATE CriteriaWeight SET Weight = ? WHERE CriteriaID = ?")
         
@@ -275,5 +314,5 @@ class Ui_WeightSetup(QMainWindow):
                     query.addBindValue(crit_id)
                     if not query.exec():
                         print(f"Did not commit changes in Criteria Weights.")
-                    else:
-                        print(f"Changes changes in Criteria Weights commited.")
+                    # else:
+                    #     print(f"Changes changes in Criteria Weights commited.")

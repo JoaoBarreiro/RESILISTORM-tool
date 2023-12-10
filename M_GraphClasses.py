@@ -1,10 +1,12 @@
 import sys
+from turtle import width
+import matplotlib
 import pandas as pd
 import numpy as np
 
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget, QMenu, QFileDialog
+from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget, QMenu, QFileDialog, QSizePolicy, QLayout
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -73,6 +75,7 @@ class MultiHorizontalBarGraphWidget(QWidget):
 
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
 
         # Connect the mouse motion event
         self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
@@ -142,9 +145,7 @@ class MultiHorizontalBarGraphWidget(QWidget):
                     self.text = None
 
             self.canvas.draw()
-            
-            pass
-
+        
 class SingleHorizontalBarGraphWidget(QWidget):
     def __init__(self, value, xmax):
         super().__init__()
@@ -204,10 +205,48 @@ class SingleHorizontalBarGraphWidget(QWidget):
 
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
 
         # Connect the mouse motion event
         self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
+        
+    def on_bar_hover(self, event):
+        if event.inaxes == self.ax:
+            for i, bar in enumerate(self.bars):
+                if bar.contains(event)[0]:
+                    # Set the transparency of the hovered bar to 1.0
+                    #bar.set_alpha(1)
+                    # Add a contour
+                    bar.set_edgecolor('darkblue')
+                    bar.set_linewidth(1)
+                    
+                    # Get the value of the hovered bar
+                    value = self.values[i] 
+                    
+                    # Remove the previous text element if it exists
+                    if self.text:
+                        self.text.remove()
+                   
+                    # Add the text for the value inside the bar
+                    if self.xmax == 100:
+                        self.text = self.ax.text(value + 1, i, f"{str(value)}%", va='center')
+                    elif self.xmax == 1:
+                        self.text = self.ax.text(value + 0.01, i, f"{str(value)}", va='center')
+                    
+                else:
+                    # Set the transparency of non-hovered bars to 0.5
+                    bar.set_alpha(0.5)
+                    bar.set_edgecolor('none')
+                    
+            # Remove the text element if it exists and the mouse is not over any bar
+            if not any(bar.contains(event)[0] for bar in self.bars):
+                for i, bar in enumerate(self.bars):
+                    bar.set_alpha(1)
+                if self.text:
+                    self.text.remove()
+                    self.text = None
 
+            self.canvas.draw()
         # Set the layout
         layout = QVBoxLayout()
         layout.addWidget(self.canvas)
@@ -228,8 +267,14 @@ class SingleHorizontalBarGraph(QWidget):
 
     def initUI(self):
         # Create a figure and axes
-        self.fig = Figure(constrained_layout=True)
+        # self.fig = Figure(constrained_layout=True) 
+        self.fig = Figure(layout='none')
+        # Set the background color with 50% transparency
+        self.fig.patch.set_facecolor("none")
+        #self.fig.patch.set_alpha(0)     #transparent ?
+        
         self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor('none')
 
         # Fix the X values between 0 and xmax
         self.ax.set_xlim(0, self.xmax)
@@ -257,29 +302,17 @@ class SingleHorizontalBarGraph(QWidget):
         # Hide vertical gridlines
         self.ax.grid(False)
         
-        # Set the background color with 50% transparency
-        self.fig.patch.set_facecolor("AliceBlue")
-        self.fig.patch.set_alpha(0)     
-           
-        # Set the facecolor to none
-        self.ax.set_facecolor('none')
-        
         # Create a colormap and normalize the values
         cmap = cm.get_cmap('RdYlGn')
         norm = plt.Normalize(0, self.xmax)
-        
-        #colors = [cmap(norm(value)) if value != '' else 'darkgrey' for value in self.values]
-        
+                
         z_order = list(range(len(self.data), 0, -1))
         
         for index, color in enumerate(self.colors):
             if color == '':
                 self.colors[index] = cmap(norm(self.data[index]))
                 
-        #self.colors_reverse = self.colors[::-1]
-                        
-        #cumulative_series = np.cumsum(self.data)
-        
+
         left = 0
         
         for i, data in enumerate(self.data):
@@ -292,13 +325,9 @@ class SingleHorizontalBarGraph(QWidget):
             if i == 0:
                 self.bar = bar
         
-        # Create a values bar
-        #self.bar = self.ax.barh(1, width = cumulative_series[::-1], color = self.colors_reverse, alpha= 1)
-        # Create a light grey bar as a background behind the data bars
-        # self.ax.barh(1, self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, alpha = 0.2, zorder=0)
-
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
 
         # Connect the mouse motion event
         self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
@@ -373,220 +402,6 @@ class SingleHorizontalBarGraph(QWidget):
         
         self.canvas.draw()
 
-class ResilienceHorizontalBarGraphWidget(QWidget):
-    def __init__(self, dataframe: pd.DataFrame, xmax: int):
-        super().__init__()
-        self.df = dataframe.copy()
-        self.xmax = xmax
-        self.series_names = dataframe.index.tolist()
-        self.num_series = len(self.series_names)
-        self.series_values = dataframe.values.flatten().tolist()
-        
-        # Create a colormap and normalize the values
-        cmap = cm.get_cmap('RdYlGn')
-        norm = plt.Normalize(0, self.xmax)   
-        
-        self.df["Color"] = pd.Series()
-        for index, row in self.df.iterrows():
-            self.df.at[index, "Color"] = cmap(norm(self.df.at[index, "PerRes"]))
-        
-        self.emptyplot()
-
-    def emptyplot(self):
-        self.LinesToKeep = []
-        
-        # Create a figure and axes
-        self.fig = Figure(constrained_layout=True)
-        self.ax = self.fig.add_subplot(111)
-
-        # Fix the X values between 0 and 100%
-        self.ax.set_xlim(0, self.xmax)
-
-        # Set the x-axis for the main ticjs and hide them
-        x_ticks = [0, 0.3, 0.55, 0.75, 0.9, 1]
-        self.ax.set_xticks(x_ticks)
-        self.ax.set_xticklabels([])
-        # Hide the minor x-tick marks
-        self.ax.tick_params(which='major', length=0)
-
-        # Set the x-axis ticks the labels to show
-        x_labels_ticks = [0.15, 0.425, 0.65, 0.825, 0.95]
-        x_labels = ['Bad', 'Insufficient', 'Acceptable', 'Good', 'Great']
-        self.ax.set_xticks(x_labels_ticks, minor=True)
-        self.ax.set_xticklabels(x_labels, minor=True)
-        
-        xLabelsFont = FontProperties(family='Segoe UI', style='normal', weight='bold', size=8)
-        self.ax.tick_params(which='minor', length=0)
-        
-        for tick in self.ax.xaxis.get_minor_ticks():
-            tick.label.set_fontproperties(xLabelsFont)
-
-        # Display vertical lines on major x-ticks
-        for tick in x_ticks:
-            vline = self.ax.axvline(tick, color='lightgray', linewidth = 0.5, linestyle='--', zorder = 0)
-            self.LinesToKeep.append(vline)
-
-        # Set the number of y values
-        self.ax.set_yticks([])
-        self.ax.set_yticklabels([])
-
-        # Hide the top and bottom axis lines
-        self.ax.spines['top'].set_visible(False)
-        self.ax.spines['bottom'].set_visible(False)
-
-        # Set the background color
-        self.fig.patch.set_facecolor("AliceBlue")
-        self.fig.patch.set_alpha(1)
-
-        # Set the facecolor to none
-        self.ax.set_facecolor('none')
-        
-        # Create the canvas to display the plot
-        self.canvas = FigureCanvas(self.fig)
-
-        # Set the layout for the main plot
-        layout = QVBoxLayout()
-        layout.addWidget(self.canvas)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        self.setLayout(layout)
-
-        # Initialize the text element for the value inside the bars
-        self.text = None
-        
-        # Initizalir the baseline scenario for comparisons
-        self.baseline_scenario = None
-        
-        # Initialize current series ploted names controler
-        self.PlotedSeries = []
-        
-        #Initialize plot bars container
-        self.bars = None
-        self.greybars = None
-        
-    def set_baseline_scenario(self, baseline_scenario):
-        self.baseline_scenario = baseline_scenario
-
-    def update_series_visibility(self, series_name: str, Status: bool):
-        
-        if Status:
-            if series_name not in self.PlotedSeries:
-                self.PlotedSeries.append(series_name)
-        else:
-           if series_name in self.PlotedSeries:
-                self.PlotedSeries.remove(series_name)            
-              
-        # Set the number of y values
-        self.ax.set_yticks(range(len(self.PlotedSeries)))
-        yLabelsFont = FontProperties(family='Segoe UI', style='normal', weight='bold', size=10)
-        self.ax.set_yticklabels(self.PlotedSeries, fontproperties = yLabelsFont)
-        
-        if not self.PlotedSeries:
-            self.ax.set_ylim(0, 1)
-        else:
-            self.ax.set_ylim(range(len(self.PlotedSeries))[0] - 0.5, range(len(self.PlotedSeries))[-1] + 0.5)
-
-        # Filter the DataFrame based on the updated series_names in self.PlotedSeries
-        df_Plot = self.df[self.df.index.isin(self.PlotedSeries)]
-        
-        # Clear the existing bars from the plot
-        if self.bars:
-            for bar in self.bars:
-                bar.remove()      
-        
-        if self.greybars:
-            for bar in self.greybars:
-                bar.remove()              
-        
-        # Plot the bars from the filtered dataframe based on the series_names on self.PlotedSeries
-        self.bars = self.ax.barh(range(len(self.PlotedSeries)), df_Plot["PerRes"], height = 0.3, alpha= 1, color = df_Plot["Color"], zorder = 2)
-        
-        # Create a light grey bar as a background behind the data bars
-        self.greybars = self.ax.barh(range(len(self.PlotedSeries)), self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, height = 0.3, alpha = 0.2, zorder = 1)
-
-        self.canvas.draw()
-        
-        # Connect the mouse motion event
-        self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
-        
-        # Initialize the text element for the value inside the bars
-        self.text = None
-
-    def animateBars(self):
-
-        def update(frame):
-            progress = frame / self.frames * self.xmax
-            max_value = max(self.series_values)
-            for bar, w in zip(self.bars, self.series_values):
-                width = min(progress , w)
-                bar.set_width(width)
-
-            self.canvas.draw()
-
-            if progress >= max_value:
-                self.animation.event_source.stop()
-
-        self.frames = 150
-        self.animation = animation.FuncAnimation(self.fig, update, frames = self.frames, interval= 0.2)
-        self.canvas.draw_idle()
-
-    def on_bar_hover(self, event):
-        if event.inaxes == self.ax:
-            for i, bar in enumerate(self.bars):
-                if bar.contains(event)[0]:
-                    # Add a contour
-                    bar.set_edgecolor('darkblue')
-                    bar.set_linewidth(1)
-
-                    # Get the value of the hovered bar
-                    value = self.series_values[i]
-
-                    # Remove the previous text element if it exists
-                    if self.text:
-                        self.text.remove()
-
-                    normvalue = value / self.xmax
-                    labelpad = 0.025 * self.xmax
-
-                    # Add the text for the value inside the bar
-                    if self.xmax == 1:
-                        label = f"{(value):.2f}"
-                    elif self.xmax == 100:
-                        label = f"{str(value)}%"
-
-                    if normvalue <= 0.1:
-                        self.text = self.ax.text(value + labelpad, i, label , va='center', ha = "left")
-                    else:
-                        self.text = self.ax.text(value - labelpad, i, label , va='center', ha = "right")
-
-                else:
-                    # Set the transparency of non-hovered bars to 0.5
-                    bar.set_alpha(0.5)
-                    bar.set_edgecolor('none')
-
-            # Remove the text element if it exists and the mouse is not over any bar
-            if not any(bar.contains(event)[0] for bar in self.bars):
-                for i, bar in enumerate(self.bars):
-                    bar.set_alpha(1)
-                if self.text:
-                    self.text.remove()
-                    self.text = None
-        else:
-            if self.text:
-                self.text.remove()
-                self.text = None
-
-        self.canvas.draw()
-    
-    def clearSelected_lines_and_text(self):
-        # Remove the lines and text associated with the selected series
-        for line in self.ax.lines:
-            if line not in self.LinesToKeep:
-                line.remove()
-
-        for text in self.ax.texts:
-            text.remove()
-
 class CircularGraphWidget(QWidget):
     def __init__(self, data: list, colors: list):
         super().__init__()
@@ -655,6 +470,7 @@ class CircularGraphWidget(QWidget):
         
         # Create the canvas to display the plot
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
         
         # Connect the mouse motion event
         #self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
@@ -686,7 +502,10 @@ class CircularGraphWidget(QWidget):
             self.wedge_filled.set_theta2(end_angle)
             self.wedge_filled.set_facecolor(self.cmap(self.norm(norm_value)))
 
-            self.text_label.set_fontsize(norm_value * self.fontsize/self.data[0])
+            if self.data[0] > 0:
+                self.text_label.set_fontsize(norm_value * self.fontsize/self.data[0])
+            else:
+                self.text_label.set_fontsize(self.fontsize)
 
             if norm_value >= self.data[0]:
                 #self.canvas.draw()
@@ -768,7 +587,373 @@ def categorizeResilience(value):
                 resilienceClass = category
                 return resilienceClass
 
-class ScatterPlotWidget(QWidget):
+class ScatterPerformancePlotWidget(QWidget):
+    def __init__(self, dataframe: pd.DataFrame, legend: pd.DataFrame):
+        super().__init__()
+        self.df = dataframe.copy()
+        self.legend = legend
+        
+        self.initUI()
+
+    def initUI(self):
+        
+        # Create a figure and axes
+        self.fig = Figure(layout = "tight")
+        self.fig.patch.set_facecolor("none")
+        
+        self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor('none')
+
+        self.ax.xaxis.set_tick_params(labelsize="small")
+        self.ax.yaxis.set_tick_params(labelsize="small")
+
+        # Set initial plot limits based on the data range
+        x_min= int(self.df.index.min())
+        x_max = int(self.df.index.max())
+
+        self.ax.set_xlim(max(0, round(x_min - 5, 1)), round(x_max + 5, 1))
+        self.ax.set_ylim(0, 1.1)
+
+        # X-AXIS SETTINGS
+        # Set X-axis label in bold
+        self.ax.set_xlabel("Rainfall RP (years)", fontsize="small", fontweight="bold")
+        # Align X-axis label to the right
+        self.ax.xaxis.set_label_coords(0.85, -0.15)
+        # Set X-axis ricks on data X values
+        self.ax.set_xticks(self.df.index.values)
+
+        # Hide the top and right spines
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+
+        # Hide vertical gridlines
+        self.ax.grid(False, axis='y')
+
+        # Create a colormap with unique colors for each row
+        self.scatter_cmap = plt.get_cmap('tab10', len(self.df.columns))
+
+        # Get the colors for the average
+        self.cmap = cm.get_cmap('RdYlGn')
+        self.norm = plt.Normalize(0, 1)
+
+
+        # Set the area under the stackplot
+        x_avg_values = self.df.index.values
+        y_avg_values = self.df["Average"].values.astype(float)
+        
+        # Calculate the area under the stackplot
+        average_area = np.trapz(y_avg_values, x_avg_values)
+        # Calculate the total width of the x-axis range
+        total_width = x_avg_values[-1] - x_avg_values[0]
+        # Calculate the normalized integral 
+        ResilienceIndex = average_area / total_width
+
+        background_area = self.ax.fill_between(x_avg_values, y_avg_values, 1, alpha= 1, color='#D6DBDF', linewidth = 0)       
+         
+        average_area = self.ax.stackplot(x_avg_values,
+                                    y_avg_values,
+                                    alpha = 0.6,
+                                    color = self.cmap(self.norm(ResilienceIndex))
+                                    )
+        
+        # Write the value of the normalized integral on the stackplot
+        normalized_value = self.ax.text(min(x_avg_values)+(max(x_avg_values)-min(x_avg_values))/2, ResilienceIndex / 2 , f"R = {ResilienceIndex:.2f}", ha='center', va='center', weight = "bold")
+
+        # Store scatter objects and legend entries
+        self.scatter_objects = []
+        self.legend_entries = []
+        
+        marker_size = 30
+        i = 0
+        for col_name, col_data in self.df.iloc[:, :-1].items():   #without the last column!
+            # Plot scatter points for each valid value
+            scatter = self.ax.scatter(x = col_data.index.values,
+                                      y = col_data.values,
+                                      marker = 'o',
+                                      color = self.scatter_cmap(i),
+                                      s = marker_size,
+                                      alpha = 1)
+            self.scatter_objects.append(scatter)
+
+            i += 1
+        
+        self.legend_filtered = self.legend[self.legend.index.isin(self.df.columns)]["ShowName"].values
+        
+        self.legend = self.ax.legend(self.scatter_objects,
+                                     self.legend_filtered,
+                                     ncol = 3,
+                                     fontsize = "small",
+                                     loc = 'center',
+                                     bbox_to_anchor = (0.5, -0.35),
+                                     handletextpad = 0.1,       # Adjust the space between symbols and labels
+                                     frameon = False)
+    
+        # ncol=min(3, len(visible_labels)), 
+        
+        self.legend.set_visible(True)  # Make sure the legend is visible
+        self.legend.set_picker(True) # Enable picking on the legend
+        self.legend.figure.canvas.mpl_connect('pick_event', self.on_legend_pick)
+        self.SelectedSeries = None
+        self.InteractiveElements = []
+            
+        # Create a canvas and layout for the widget
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)        
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.setSizeConstraint(QLayout.SetMinimumSize)
+        self.setLayout(layout)
+
+    def on_legend_pick(self, event):
+        
+        legend_label = None
+        
+        if event.mouseevent.button == 1:  # Left mouse button clicked
+            legend_artist = event.artist
+            legend_handles = legend_artist.legendHandles
+            
+            if not legend_label:            
+                for handle, label in zip(legend_handles, self.legend_filtered):
+                    contains, _ = handle.contains(event.mouseevent)
+                    if contains:
+                        legend_label = label
+                        print("Clicked on legend item:", legend_label)
+                        break
+
+            if not legend_label:
+                for text in legend_artist.get_texts():
+                    if text.contains(event.mouseevent)[0]:
+                        legend_label = text.get_text()
+                        print("Clicked on legend label:", legend_label)
+                        break
+
+            if self.SelectedSeries == legend_label:
+                # Clear the selected series and remove the lines and text
+                self.clearSelected_lines_and_text()
+                self.SelectedSeries = None
+            else:
+                if self.InteractiveElements:
+                    self.clearSelected_lines_and_text()
+                self.SelectedSeries = legend_label
+                self.plot_Line_and_Text(legend_label)
+                
+
+            # Redraw the canvas to reflect the changes
+            event.canvas.draw()
+    def plot_Line_and_Text(self, selected_label):
+        
+        position = self.legend_filtered.tolist().index(selected_label)
+        
+        series_column = self.df.columns[position]
+        
+        data = self.df[series_column]
+        x_values = data.index.values
+        y_values = data.values
+            
+        line = self.ax.plot(x_values, y_values, color=self.scatter_cmap(position), alpha=1, linestyle='-', marker='o', zorder=1)
+        self.InteractiveElements.append(line[0])
+        
+        # calculate the area below line
+        area = np.trapz(y_values, x_values)
+        # Calculate the total width of the x-axis range
+        total_width = x_values[-1] - x_values[0]
+        # Calculate the normalized integral
+        normalized_integral = area / total_width
+        
+        normalized_text = self.ax.text(min(x_values)+(max(x_values)-min(x_values))/2, normalized_integral / 2 ,
+                                       f"R = {normalized_integral:.2f}",
+                                       ha='center', va='center',
+                                       color=self.scatter_cmap(position), alpha = 1,
+                                       weight='bold', zorder = 1)
+        
+        self.InteractiveElements.append(normalized_text)
+
+        # Set alpha and zorder for scatter points of non-selected scenarios
+        for scatter in self.scatter_objects:
+                if scatter.get_label() != selected_label:
+                    scatter.set_alpha(0.2)
+                    scatter.set_zorder(0)
+                else:
+                    scatter.set_alpha(1)
+                    scatter.set_zorder(1)
+        for text in self.ax.texts:
+            if text not in self.InteractiveElements:
+                text.set_alpha(0.2)
+                text.set_fontweight('normal')
+                text.set_zorder(0)       
+        
+        # Redraw the canvas to reflect the changes
+        self.ax.figure.canvas.draw()
+
+        #     # Calculate the midpoint between the baseline scatter and the other scatter
+        #     x_baseline = baseline_value
+        #     x_other = value
+        #     y = i
+        #     x_midpoint = (x_baseline + x_other) / 2
+        #     y_midpoint = y
+
+        #     # Determine the line style and color based on the percentage change
+        #     line_style = '-'
+        #     line_color = 'green' if percentage_change > 0 else 'red'
+
+        #     # Draw the line between the two points
+        #     hline = self.ax.plot([x_baseline, x_other], [y, y], color=line_color, linewidth=1.5, linestyle=line_style, zorder=2)
+        #     self.InteractiveElements[legend_label].append(hline)
+
+        #     # Set the position of the text slightly above the midpoint
+        #     text_x = x_midpoint
+        #     text_y = y_midpoint +  0.05 * (len(self.categories) - 1 ) 
+
+        #     # Add the text for the percentage change with "+" sign for positive values
+        #     if percentage_change > 0:
+        #         text = self.ax.text(text_x, text_y, f'+{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', weight='bold', color=line_color, zorder = 3)
+        #         self.InteractiveElements[legend_label].append(text)
+        #     else:
+        #         text = self.ax.text(text_x, text_y, f'{int(percentage_change)}%', ha='center', va='center', fontsize='x-small', weight='bold', color=line_color, zorder = 3)
+        #         self.InteractiveElements[legend_label].append(text)
+
+    def clearSelected_lines_and_text(self):
+        element_to_remove = []
+        for element in self.InteractiveElements:
+            if element in self.ax.lines: 
+                element.remove()
+                element_to_remove.append(element)
+            elif element in self.ax.texts:
+                element.remove()
+                element_to_remove.append(element)
+                
+        self.InteractiveElements = list(set(self.InteractiveElements) - set(element_to_remove))
+        
+
+        for text in self.ax.texts:
+                text.set_alpha(1)
+                text.set_zorder(1)            
+                text.set_fontweight('bold')
+                 
+        for scatter in self.scatter_objects:
+            scatter.set_alpha(1)
+            scatter.set_zorder(1)
+            
+
+        # Redraw the canvas to reflect the changes
+        self.ax.figure.canvas.draw()   
+        
+    def clear_hlines_and_texts(self, data_series_name):
+        
+        for key, elements in self.InteractiveElements.items():
+            if key == data_series_name:
+                for element in elements:
+                    element.remove()
+                    
+        self.canvas.draw()
+
+class BarPerformancePlotWidget(QWidget):
+    def __init__(self, dataframe: pd.DataFrame, legend: pd.DataFrame):
+        super().__init__()
+        self.df = dataframe.copy()
+        self.legend = legend
+        
+        self.initUI()
+
+    def initUI(self):
+       
+        # Create a figure and axes
+        self.fig = Figure(layout = "tight")
+        self.fig.patch.set_facecolor("none")
+        
+        self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor('none')
+
+        self.ax.xaxis.set_tick_params(labelsize="small")
+        self.ax.yaxis.set_tick_params(labelsize="small")
+
+        # self.ax.set_xlim(max(0, round(x_min - 5, 1)), round(x_max + 5, 1))
+        self.ax.set_ylim(0, 1.1)
+
+        # Hide the top and right spines
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+
+        # Hide vertical gridlines
+        self.ax.grid(False, axis='y')
+
+        # Create a colormap with unique colors for each row
+        self.scatter_cmap = plt.get_cmap('tab10', len(self.df.columns))
+
+        # Get the colors for the average
+        self.cmap = cm.get_cmap('RdYlGn')
+        self.norm = plt.Normalize(0, 1)
+
+        # Set the area under the stackplot
+        y_values = self.df.values[0, :-1].astype(float)
+        x_values = range(1, len(y_values)+1)
+        x_colors = range(0, len(y_values))
+        
+        x_labels = self.legend[self.legend.index.isin(self.df.columns)]["ShowName"].values
+        
+        # Set X-axis ticks on data X values
+        self.ax.set_xticks(x_values)
+        self.ax.set_xticklabels(x_labels)
+        
+        # Calculate the average of the y_values -< Resilience Index
+        ResilienceIndex = self.df.values[0, -1]
+       
+        R_line = self.ax.axhline(ResilienceIndex,
+                                    alpha = 1,
+                                    color = self.cmap(self.norm(ResilienceIndex)),
+                                    linewidth = 2
+                                    )
+        
+        # Write the value of the normalized integral at the right of the line
+        self.normalized_value = self.ax.text(max(x_values) + 0.4,
+                                ResilienceIndex,
+                                f"R = {ResilienceIndex:.2f}",
+                                color = self.cmap(self.norm(ResilienceIndex)),
+                                ha='left', va='center',
+                                weight = "bold")
+
+        background_bars = self.ax.bar(x = x_values,
+                                      height = 1,
+                                      color = "#D6DBDF",
+                                      width = 0.5,
+                                      alpha = 1,
+                                      edgecolor = 'none',
+                                      zorder = 0)
+                                      
+        # Store scatter objects and legend entries
+        self.plot_objects = []
+        self.legend_entries = []
+        
+        marker_size = 30
+        bar = self.ax.bar(x = x_values,
+                              height = y_values,
+                              color = self.scatter_cmap(x_colors),
+                              width = 0.5,
+                              alpha = 1,
+                              edgecolor = 'none',
+                              zorder = 1)
+        self.plot_objects.append(bar)
+
+         
+
+        self.SelectedSeries = None
+        self.InteractiveElements = []
+            
+        # Create a canvas and layout for the widget
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)        
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.setSizeConstraint(QLayout.SetMinimumSize)
+        self.setLayout(layout)
+
+class _OLD_ScatterPlotWidget(QWidget):
     def __init__(self, dataframe: pd.DataFrame(), xmax: int):
         super().__init__()
         self.df = dataframe.copy()
@@ -860,6 +1045,8 @@ class ScatterPlotWidget(QWidget):
            self.LinesToKeep.append(hline)       
         
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
+        
         layout = QVBoxLayout()
         layout.addWidget(self.canvas)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1070,6 +1257,221 @@ class ScatterPlotWidget(QWidget):
                     
         self.canvas.draw()
 
+class _OLD_ResilienceHorizontalBarGraphWidget(QWidget):
+    def __init__(self, dataframe: pd.DataFrame, xmax: int):
+        super().__init__()
+        self.df = dataframe.copy()
+        self.xmax = xmax
+        self.series_names = dataframe.index.tolist()
+        self.num_series = len(self.series_names)
+        self.series_values = dataframe.values.flatten().tolist()
+        
+        # Create a colormap and normalize the values
+        cmap = cm.get_cmap('RdYlGn')
+        norm = plt.Normalize(0, self.xmax)   
+        
+        self.df["Color"] = pd.Series()
+        for index, row in self.df.iterrows():
+            self.df.at[index, "Color"] = cmap(norm(self.df.at[index, "PerRes"]))
+        
+        self.emptyplot()
+
+    def emptyplot(self):
+        self.LinesToKeep = []
+        
+        # Create a figure and axes
+        self.fig = Figure(constrained_layout=True)
+        self.ax = self.fig.add_subplot(111)
+
+        # Fix the X values between 0 and 100%
+        self.ax.set_xlim(0, self.xmax)
+
+        # Set the x-axis for the main ticjs and hide them
+        x_ticks = [0, 0.3, 0.55, 0.75, 0.9, 1]
+        self.ax.set_xticks(x_ticks)
+        self.ax.set_xticklabels([])
+        # Hide the minor x-tick marks
+        self.ax.tick_params(which='major', length=0)
+
+        # Set the x-axis ticks the labels to show
+        x_labels_ticks = [0.15, 0.425, 0.65, 0.825, 0.95]
+        x_labels = ['Bad', 'Insufficient', 'Acceptable', 'Good', 'Great']
+        self.ax.set_xticks(x_labels_ticks, minor=True)
+        self.ax.set_xticklabels(x_labels, minor=True)
+        
+        xLabelsFont = FontProperties(family='Segoe UI', style='normal', weight='bold', size=8)
+        self.ax.tick_params(which='minor', length=0)
+        
+        for tick in self.ax.xaxis.get_minor_ticks():
+            tick.label.set_fontproperties(xLabelsFont)
+
+        # Display vertical lines on major x-ticks
+        for tick in x_ticks:
+            vline = self.ax.axvline(tick, color='lightgray', linewidth = 0.5, linestyle='--', zorder = 0)
+            self.LinesToKeep.append(vline)
+
+        # Set the number of y values
+        self.ax.set_yticks([])
+        self.ax.set_yticklabels([])
+
+        # Hide the top and bottom axis lines
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['bottom'].set_visible(False)
+
+        # Set the background color
+        self.fig.patch.set_facecolor("AliceBlue")
+        self.fig.patch.set_alpha(1)
+
+        # Set the facecolor to none
+        self.ax.set_facecolor('none')
+        
+        # Create the canvas to display the plot
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setStyleSheet("background-color: transparent;")
+
+        # Set the layout for the main plot
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
+
+        # Initialize the text element for the value inside the bars
+        self.text = None
+        
+        # Initizalir the baseline scenario for comparisons
+        self.baseline_scenario = None
+        
+        # Initialize current series ploted names controler
+        self.PlotedSeries = []
+        
+        #Initialize plot bars container
+        self.bars = None
+        self.greybars = None
+        
+    def set_baseline_scenario(self, baseline_scenario):
+        self.baseline_scenario = baseline_scenario
+
+    def update_series_visibility(self, series_name: str, Status: bool):
+        
+        if Status:
+            if series_name not in self.PlotedSeries:
+                self.PlotedSeries.append(series_name)
+        else:
+           if series_name in self.PlotedSeries:
+                self.PlotedSeries.remove(series_name)            
+              
+        # Set the number of y values
+        self.ax.set_yticks(range(len(self.PlotedSeries)))
+        yLabelsFont = FontProperties(family='Segoe UI', style='normal', weight='bold', size=10)
+        self.ax.set_yticklabels(self.PlotedSeries, fontproperties = yLabelsFont)
+        
+        if not self.PlotedSeries:
+            self.ax.set_ylim(0, 1)
+        else:
+            self.ax.set_ylim(range(len(self.PlotedSeries))[0] - 0.5, range(len(self.PlotedSeries))[-1] + 0.5)
+
+        # Filter the DataFrame based on the updated series_names in self.PlotedSeries
+        df_Plot = self.df[self.df.index.isin(self.PlotedSeries)]
+        
+        # Clear the existing bars from the plot
+        if self.bars:
+            for bar in self.bars:
+                bar.remove()      
+        
+        if self.greybars:
+            for bar in self.greybars:
+                bar.remove()              
+        
+        # Plot the bars from the filtered dataframe based on the series_names on self.PlotedSeries
+        self.bars = self.ax.barh(range(len(self.PlotedSeries)), df_Plot["PerRes"], height = 0.3, alpha= 1, color = df_Plot["Color"], zorder = 2)
+        
+        # Create a light grey bar as a background behind the data bars
+        self.greybars = self.ax.barh(range(len(self.PlotedSeries)), self.xmax, color='lightgrey', edgecolor = 'black', linewidth = 0.5, height = 0.3, alpha = 0.2, zorder = 1)
+
+        self.canvas.draw()
+        
+        # Connect the mouse motion event
+        self.canvas.mpl_connect('motion_notify_event', self.on_bar_hover)
+        
+        # Initialize the text element for the value inside the bars
+        self.text = None
+
+    def animateBars(self):
+
+        def update(frame):
+            progress = frame / self.frames * self.xmax
+            max_value = max(self.series_values)
+            for bar, w in zip(self.bars, self.series_values):
+                width = min(progress , w)
+                bar.set_width(width)
+
+            self.canvas.draw()
+
+            if progress >= max_value:
+                self.animation.event_source.stop()
+
+        self.frames = 150
+        self.animation = animation.FuncAnimation(self.fig, update, frames = self.frames, interval= 0.2)
+        self.canvas.draw_idle()
+
+    def on_bar_hover(self, event):
+        if event.inaxes == self.ax:
+            for i, bar in enumerate(self.bars):
+                if bar.contains(event)[0]:
+                    # Add a contour
+                    bar.set_edgecolor('darkblue')
+                    bar.set_linewidth(1)
+
+                    # Get the value of the hovered bar
+                    value = self.series_values[i]
+
+                    # Remove the previous text element if it exists
+                    if self.text:
+                        self.text.remove()
+
+                    normvalue = value / self.xmax
+                    labelpad = 0.025 * self.xmax
+
+                    # Add the text for the value inside the bar
+                    if self.xmax == 1:
+                        label = f"{(value):.2f}"
+                    elif self.xmax == 100:
+                        label = f"{str(value)}%"
+
+                    if normvalue <= 0.1:
+                        self.text = self.ax.text(value + labelpad, i, label , va='center', ha = "left")
+                    else:
+                        self.text = self.ax.text(value - labelpad, i, label , va='center', ha = "right")
+
+                else:
+                    # Set the transparency of non-hovered bars to 0.5
+                    bar.set_alpha(0.5)
+                    bar.set_edgecolor('none')
+
+            # Remove the text element if it exists and the mouse is not over any bar
+            if not any(bar.contains(event)[0] for bar in self.bars):
+                for i, bar in enumerate(self.bars):
+                    bar.set_alpha(1)
+                if self.text:
+                    self.text.remove()
+                    self.text = None
+        else:
+            if self.text:
+                self.text.remove()
+                self.text = None
+
+        self.canvas.draw()
+    
+    def clearSelected_lines_and_text(self):
+        # Remove the lines and text associated with the selected series
+        for line in self.ax.lines:
+            if line not in self.LinesToKeep:
+                line.remove()
+
+        for text in self.ax.texts:
+            text.remove()
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     
@@ -1085,7 +1487,7 @@ if __name__ == '__main__':
     categories = ['A', 'B', 'C']
     values = [0.3, 0.5, 1]
     df = pd.DataFrame(values, index=categories)
-    widget = ResilienceHorizontalBarGraphWidget(df, xmax = 1)
+    widget = _OLD_ResilienceHorizontalBarGraphWidget(df, xmax = 1)
     widget.show()
     
     #TEST CircularGraphWidget
@@ -1103,7 +1505,7 @@ if __name__ == '__main__':
 
     df = pd.DataFrame(data)
 
-    widget = ScatterPlotWidget(df, xmax=1)
+    widget = _OLD_ScatterPlotWidget(df, xmax=1)
     widget.show()
     
     

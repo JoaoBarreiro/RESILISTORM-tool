@@ -1,5 +1,8 @@
 <RCC>
   <qresource prefix="icon">
+    <file>icons/icons8-dots-50.png</file>
+    <file>icons/RESILISTORM_Welcome.gif</file>
+    <file>icons/RESILISTORM_mini.png</file>
     <file>icons/icons8-settings.svg</file>
     <file>icons/left_arrow.png</file>
     <file>icons/REFUSS LOGO_50.ico</file>
@@ -22,6 +25,10 @@
     <file>icons/rain-64.ico</file>
     <file>icons/settings-12-64.ico</file>
     <file>icons/settings-13-64.ico</file>
+  </qresource>
+  <qresource prefix="Profiles">
+    <file>icons/icons8-thermometer-60.png</file>
+    <file>icons/rain-64.ico</file>
   </qresource>
   <qresource prefix="images">
     <file>images/Panarchy_Flooding.png</file>

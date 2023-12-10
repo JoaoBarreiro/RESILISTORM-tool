@@ -108,61 +108,59 @@ class ClassHazard:
 class BuildingHazard:
     def __init__(self,
                  Methodology: str,
-                 UserBuildingUsesOnMethodology: Optional[dict] = None,
-                 UserBuilingsSize: Optional[dict] = None,
-                 WaterHeightOnBuildings: Optional[dict] = None):
+                 UserCustomUses: pd.DataFrame = None,
+                 BuildingAnswers: pd.DataFrame = None,
+                 ):
         
         """_summary_
 
         Args:
             Methodology (str): Choose methodology to calculate the hazard
                 B1: Huizinga, J., De Moel, H., Szewczyk, W. (2017) https://publications.jrc.ec.europa.eu/repository/bitstream/JRC105688/global_flood_depth-damage_functions__10042017.pdf
-            UserBuildingUsesOnMethodology (dict): Dictionay containing as keys the building uses form the selected metholodogy and as element a list of the user building uses that match the methodology uses. Use only CAPITAL LETTERS FOR STRNINGS
+            UserBuildingUsesOnMethodology (pd.DataFrame): Dataframe from the B1UsesSetup table containing the custom building uses and its associated methodology class.
+            To be converted to a dictionary as follows:
                 e.g. {"COMMERCIAL": ["TERCIARY", "EQUIPMENT"]}
             UserBuilingsSize (dict): Dictionay containing as keys the user building classes and as element its quantitiave value (for example, total area or number of buildings with that class)
-                e.g. {"TERCIARY": 100, "EQUIPMENT": 20}
-            #WaterHeightOnBuildings (dict): Dictionary containg as keys the user building classes and as elements a dataframe where 1st column is maximum water height (in meters) and 2nd column is the number/area of buildings affected 
-             #   e.g. {"TERCIARY": pd.DataFrame({'MaxWater': [0, 0.2, 0.5], 'Value': [90, 5, 5]}), ...}
-            
+                e.g. {"TERCIARY": 100, "EQUIPMENT": 20}           
         """
         
         MethodologyNrClasses = {"B1": 3}
         
         MethodologyUses = {"B1": ["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL"]}
         
-        if Methodology not in MethodologyNrClasses.keys():
+        self.Methodology = Methodology
+        
+        self.CustomUses = UserCustomUses.copy(deep=True)
+        self.CustomUses["MethodologyClass"] = self.CustomUses["MethodologyClass"].str.upper()
+
+        self.CustomUses_convert = dict(zip(self.CustomUses["CustomUse"].str.upper(), self.CustomUses["MethodologyClass"]))
+        
+        self.Values = BuildingAnswers.copy(deep=True)
+        self.Values["BuildingUse"] = self.Values["BuildingUse"].str.upper()
+        self.Values.set_index("BuildingUse", inplace = True)
+        
+        if self.Methodology not in MethodologyNrClasses.keys():
             raise TypeError("BuildingHazard: Methodology not available...")
         
-        if not all(key in MethodologyUses.get(Methodology, []) for key in UserBuildingUsesOnMethodology.keys()):
-            raise TypeError("BuildingHazard: Building uses don't match the methodology")          
+        self.methodology_uses_list = UserCustomUses["MethodologyClass"].unique().tolist()
+        self.custom_uses_list = self.CustomUses["CustomUse"].str.upper().unique().tolist()
         
-        self.UserBuildingsUse = []
-        for list in UserBuildingUsesOnMethodology.values():
-            for UserBuildingType in list:
-                self.UserBuildingsUse.append(UserBuildingType)
+        for use in self.CustomUses_convert.values():
+            if use not in MethodologyUses[self.Methodology]:
+                raise TypeError("BuildingHazard: Building uses don't match the methodology")
 
-        # if UserBuilingsSize.keys() not in self.UserBuildingsUse:
-        #     raise TypeError("BuildingHazard: UserBuildingSize dont match uses given in UserBuildingUsesOnMethodology")          
-         
-        # if WaterHeightOnBuildings.keys() not in self.UserBuildingsUse:
-        #     raise TypeError("BuildingHazard: WaterHeightOnBuildings dont match uses given in UserBuildingUsesOnMethodology")          
-            
-        self.Methodology = Methodology
-        self.BuildingsRelationMethodology = UserBuildingUsesOnMethodology
-        self.UserBuildingsSize = UserBuilingsSize
-        self.WaterLevels = WaterHeightOnBuildings.iloc[:, :1]
-        self.BuildingsAffected = WaterHeightOnBuildings.iloc[:, 1:]
-    
         self.MethodologyCurves, self.MethodologyDepths = self.getMethodologyCurves()
-
+        
+        self.MethodologyNormalizedSetps = self.getMethodologySteps()
+        
         # Invert and normalize the curves between 0 and 1
         self.NormalizedCurves = {}
         for class_name, values in self.MethodologyCurves.items():
             inverted_values = [1 - value for value in values]
             max_value = max(inverted_values)
             normalized_values = [value / max_value for value in inverted_values]
-            self.NormalizedCurves[class_name] = normalized_values
-            
+            self.NormalizedCurves[class_name] = normalized_values       
+        
         """"   
             Plot MethodologyCurves
             for class_name, values in self.NormalizedCurves.items():
@@ -182,45 +180,36 @@ class BuildingHazard:
             Show the plot
             plt.show()
         """
-
-        WaterDepthLabel = next(iter(self.WaterLevels))
     
     def calculateHazard(self):
         
-        # TotalBuildingSize is the sum of the buildings sizes (in area or number, depending on the user input)             
-        TotalBuildingSize = sum(self.UserBuildingsSize.values())
+        CustomUseAffectedFraction = pd.DataFrame(index = self.custom_uses_list, columns = self.Values.columns)
+        CustomUseAffectedRating = pd.DataFrame(index = self.custom_uses_list, columns = self.Values.columns)
         
-        #BuildingsUseFraction is the ratio of buidling of each use over the total number of buildings
-        BuildingsUseFraction = {}
+        TotalBuildingSize = self.Values.values.sum()
+                
+        for CustomUse, Values in self.Values.iterrows():
+            self.Values.at[CustomUse, "TotalCustomUseSize"] = sum(Values)
+            self.Values.at[CustomUse, "FractionCustomUseSize"] = sum(Values) / TotalBuildingSize
+            for column, value in Values.items():
+                CustomUseAffectedFraction.at[CustomUse, column] = value / sum(Values)
         
-        # BuildingsAffectedFraction is the fraction of buildings affected in each use clas
-        BuildingsAffectedFraction = pd.DataFrame()
-        for Use, Affected in self.BuildingsAffected.items():
-            TotalByUse = sum(Affected)
-            BuildingsUseFraction[Use] = TotalByUse / TotalBuildingSize
-            BuildingsAffectedFraction[Use] = Affected/TotalByUse
-            
-        # NormalizedDamage is the BuildingsAffectedFraction multiplied by the damagefactor (interpolated from the methodlogy curves)
-        NormalizedDamage = pd.DataFrame()
-        for Use, FractionAffected in BuildingsAffectedFraction.items():
-            if Use in self.UserBuildingsUse:
-                MethodologyUse = self.getMethodologyUse(Use)                #Get the methodology use associated to the User given use
-                damage_factor = (np.interp(self.WaterLevels, self.MethodologyDepths, self.NormalizedCurves[MethodologyUse])).flatten().tolist()  
-                NormalizedDamage[Use] = FractionAffected * damage_factor
+        #print(f"CustomUseAffectedFraction: \n{CustomUseAffectedFraction}")
         
-        # HazardByUse is the sum of the contributions of all fractions of each use
-        HazardByUse = {}
-        for key, values in NormalizedDamage.items():
-            HazardByUse[key] = sum(values)
+        for CustomUse, Values in CustomUseAffectedFraction.iterrows():
+            for column, value in Values.items():
+                CustomUseAffectedRating.at[CustomUse, column] = value * self.MethodologyNormalizedSetps.at[self.CustomUses_convert[CustomUse], column]
+          
+        # CustomUseAffectedRating = CustomUseAffectedFraction * self.MethodologyNormalizedSetps
         
-        #HazardContributionByUse is the product of each Hazard by Building Use with the Building Use Fraction 
-        HazardContributionByUse = {}
-        for Use in HazardByUse.keys():
-            HazardContributionByUse[Use] = HazardByUse[Use] * BuildingsUseFraction[Use]
-            
-        TotalHazard = sum(HazardContributionByUse.values())
+        for CustomUse, Values in CustomUseAffectedRating.iterrows():
+            CustomUseAffectedRating.at[CustomUse, "TotalCustomUseRating"] = sum(Values) * self.Values.at[CustomUse, "FractionCustomUseSize"]
+
+        #print(f"CustomUseAffectedRating: {CustomUseAffectedRating}")       
         
-        return round(TotalHazard, 2)
+        TotalRating = CustomUseAffectedRating["TotalCustomUseRating"].values.sum()
+        
+        return round(TotalRating, 3)
 
     def getMethodologyCurves(self):
         
@@ -234,6 +223,20 @@ class BuildingHazard:
             
         return curves, depths
 
+    def getMethodologySteps(self):
+        
+        if self.Methodology == 'B1':        #Huizinga, J., De Moel, H., Szewczyk, W. (2017)
+            
+            WaterClasses = ("Very Low", "Low", "Moderate", "High", "Very High")
+            WaterDepths = ([0.0, 0.2], [0.2, 0.5], [0.5, 1.0], [1.0, 1.5], [1.5, 2.0])
+            NormalizedDamage = {
+                "RESIDENTIAL": (1, 0.75, 0.60, 0.50, 0.40),
+                "COMMERCIAL": (1, 0.85, 0.70, 0.55, 0.45),
+                "INDUSTRIAL": (1, 0.85, 0.73, 0.60, 0.48)
+                }
+
+            return pd.DataFrame.from_dict(NormalizedDamage, orient='index', columns=WaterClasses)
+       
     def getMethodologyUse(self, value):
         for key, values in self.BuildingsRelationMethodology.items():
             if value in values:
@@ -424,10 +427,9 @@ class All_Indicators(dict):
         indicator_settings.set_index('IndicatorID', inplace=True)
         
         for indicator_id, indicator in indicator_settings.iterrows():
-            if indicator['IndiatorUnit']:
-                self[indicator_id].indicator_unit = indicator['IndiatorUnit']    
-        
-        
+            if indicator['IndicatorUnit']:
+                self[indicator_id].indicator_unit = indicator['IndicatorUnit']    
+           
 def update_model(index, IndicatorID, combo_box, model):
     selected_value = combo_box.currentText()
     model_column = "IndicatorUnit"

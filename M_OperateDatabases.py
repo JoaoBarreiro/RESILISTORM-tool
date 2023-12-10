@@ -2,7 +2,8 @@ from os import path
 import pandas as pd
 import sys
 from PySide6.QtSql import QSqlQuery, QSqlDatabase
-from PySide6.QtWidgets import QMessageBox
+
+import M_SituationManager
 
 def establishDatabaseConnections(DatabaseList: list):
     """
@@ -32,37 +33,210 @@ def closeDatabaseConnections(DatabaseList: list):
         if database.isOpen():
             database.close()
 
-def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
+def createSituationTables(REFUSS_Database:QSqlDatabase, Study_database: QSqlDatabase, Situation_Database: QSqlDatabase, Situation: M_SituationManager.Situation):
     
-    query = QSqlQuery(Answers_Database)
+    query = QSqlQuery(Situation_Database)
 
-    ######### QUERIES TO CREATE TABLES ##################
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS MetricAnswers ("
+    '''Set Functional Metrics answer table'''
+    
+    if query.exec("CREATE TABLE IF NOT EXISTS MetricAnswers ("
                "criteriaID TEXT, "
                "metricID TEXT PRIMARY KEY, "
                "answer TEXT, "
                "comment TEXT)"
                ):
+        Situation_Database.commit()
+    else:
         print(f"Error creating MetricAnswers table: {query.lastError().text()}")
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS ScenarioSetup ("
-               "ScenarioID INTEGER UNIQUE PRIMARY KEY AUTOINCREMENT,"
-               "ScenarioName TEXT UNIQUE, "
-               "ScenarioSystemConfig TEXT, "
-               "ScenarioRainfall TEXT, "
-               "ScenarioOutfall TEXT, "
-               "ScenarioComment TEXT)"
-               ):
-        print(f"Error creating ScenarioSetup table: {query.lastError().text()}")
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS HazardSetup ("
-               "HazardName TEXT PRIMARY KEY, "
-               "HazardUnit TEXT, "
-               "HazardComment TEXT)"
-               ):
-        print(f"Error creating HazardSetup table: {query.lastError().text()}")
+    
+    ''' Set Performance Metrics answer tables '''
+    
+    # Create Performance Metrics answers tables
+    IndicatorsLibrary = fetch_table_from_database(REFUSS_Database, "IndicatorsLibrary")
+    IndicatorsLibrary.set_index("IndicatorID", inplace = True)
+            
+    Indicators_tables = Situation_Database.tables()
+    
+    for indicatorID, properties in IndicatorsLibrary.iterrows():
+        ClassesLabels = properties["ClassesLabel"].split("; ")
         
+        # Generate the SQL query to create the table with dynamic column names
+        columns = []
+        for index, label in enumerate(ClassesLabels):
+            columns.append(f"[{label}] REAL")
+        
+        columns_str = ", ".join(columns)
+        
+        if indicatorID not in Indicators_tables:
+            if indicatorID == 'B1':
+                rainfall_column = "RainfallID INTEGER ," #NOT UNIQUE!
+                extra_column = f"BuildingUse TEXT , "
+            else:
+                rainfall_column = "RainfallID INTEGER UNIQUE ," 
+                extra_column = ""
+            
+            if query.exec(f"CREATE TABLE {indicatorID} ({rainfall_column} {extra_column} {columns_str});"):
+                Situation_Database.commit()
+                
+                if indicatorID == 'B1':               
+                    updateB1TableUses(Situation_Database, Study_database, Situation)
+                else:
+                    # Create a different variable for the inner loop
+                    rainfall_values = Situation.rainfall
+                    for rainfall_id in rainfall_values:
+                        if query.exec(f"INSERT INTO {indicatorID} (RainfallID) VALUES ('{rainfall_id}');"):
+                            Situation_Database.commit()
+                        else:
+                            print(f"Error inserting RainfallID {rainfall_id} into {indicatorID}: {query.lastError().text()}")
+            else:
+                print(f"Error creating {indicatorID} table in setConsequencesTables: {query.lastError().text()} in setConsequencesTables")
+    return
+
+'''    # if not query.exec("CREATE TABLE IF NOT EXISTS ScenarioSetup ("
+    #            "RainfallID INTEGER UNIQUE PRIMARY KEY AUTOINCREMENT,"
+    #            "ScenarioName TEXT UNIQUE, "
+    #            "ScenarioSystemConfig TEXT, "
+    #            "ScenarioRainfall TEXT, "
+    #            "ScenarioOutfall TEXT, "
+    #            "ScenarioComment TEXT)"
+    #            ):
+    #     print(f"Error creating ScenarioSetup table: {query.lastError().text()}")
+
+    # if not query.exec("CREATE TABLE IF NOT EXISTS HazardSetup ("
+    #            "HazardName TEXT PRIMARY KEY, "
+    #            "HazardUnit TEXT, "
+    #            "HazardComment TEXT)"
+    #            ):
+    #     print(f"Error creating HazardSetup table: {query.lastError().text()}")
+        
+    # if not query.exec("CREATE TABLE IF NOT EXISTS IndicatorsSetup ("
+    #            "IndicatorID TEXT UNIQUE, "
+    #            "SelectedUnit TEXT, "
+    #            "IndicatorComplement TEXT, "
+    #            "SelectedState INTEGER )"
+    #            ):
+    #     print(f"Error creating IndicatorsSetup table: {query.lastError().text()}")
+
+    # if not query.exec("CREATE TABLE IF NOT EXISTS PerformanceAnswers ("
+    #            "ScenarioID INTEGER PRIMARY KEY, "
+    #            "M2111 TEXT, "
+    #            "M2112 TEXT, "
+    #            "M2121 TEXT, "
+    #            "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
+    #            ):
+    #     print(f"Error creating PerformanceAnswers table: {query.lastError().text()}")
+
+    # if not query.exec("CREATE TABLE IF NOT EXISTS HazardAnswers ("
+    #         "HazardName TEXT, "
+    #         "ScenarioID INTEGER, "
+    #         "FOREIGN KEY (HazardName) REFERENCES HazardSetup (HazardName) ON DELETE CASCADE ON UPDATE CASCADE,"
+    #         "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
+    #         ):
+    #     print(f"Error creating HazardAnswers table: {query.lastError().text()}")
+
+    # for i in range(1, 11):
+    #     query.exec(f"ALTER TABLE HazardAnswers ADD COLUMN Class{i} TEXT")
+    
+    ######### QUERIES TO UPDATE TABLES ##################
+
+    # query.exec("DROP TRIGGER IF EXISTS Upload_ScenarioID_at_PerformanceAnswers")
+    # if not query.exec("""
+    #     CREATE TRIGGER Upload_ScenarioID_at_PerformanceAnswers
+    #     AFTER INSERT ON ScenarioSetup
+    #     FOR EACH ROW
+    #     BEGIN
+    #         INSERT INTO PerformanceAnswers (ScenarioID) VALUES (NEW.ScenarioID);
+    #     END
+    # """):
+    #     print(f"Error Upload_ScenarioID_at_PerformanceAnswers: {query.lastError().text()}")
+
+    # query.exec("DROP TRIGGER IF EXISTS Update_ScenarioID")
+    # if not query.exec("""
+    #     CREATE TRIGGER Update_ScenarioID
+    #     AFTER UPDATE OF ScenarioID ON ScenarioSetup
+    #     FOR EACH ROW
+    #     BEGIN
+    #         UPDATE PerformanceAnswers
+    #         SET ScenarioID = NEW.ScenarioID
+    #         WHERE ScenarioID = OLD.ScenarioID;
+
+    #         UPDATE HazardAnswers
+    #         SET ScenarioID = NEW.ScenarioID
+    #         WHERE ScenarioID = OLD.ScenarioID;
+    #     END
+    # """):
+    #     print(f"Error Update_ScenarioID: {query.lastError().text()}")
+
+    # query.exec("DROP TRIGGER IF EXISTS Update_HazardName")
+    # if not query.exec("""
+    #     CREATE TRIGGER Update_HazardName
+    #     AFTER UPDATE OF HazardName ON HazardSetup
+    #     FOR EACH ROW
+    #     BEGIN
+    #         UPDATE HazardAnswers
+    #         SET HazardName = NEW.HazardName
+    #         WHERE HazardName = OLD.HazardName;
+    #     END
+    # """):
+    #     print(f"Error Update_ScenarioID: {query.lastError().text()}")
+
+    # query.exec("DROP TRIGGER IF EXISTS Delete_Scenario")
+    # if not query.exec("""
+    #     CREATE TRIGGER Delete_Scenario
+    #     AFTER DELETE ON ScenarioSetup
+    #     FOR EACH ROW
+    #     BEGIN
+    #         DELETE FROM PerformanceAnswers
+    #         WHERE ScenarioID = OLD.ScenarioID;
+
+    #         DELETE FROM HazardAnswers
+    #         WHERE ScenarioID = OLD.ScenarioID;
+    #     END
+    # """):
+    #     print(f"Error Delete_Scenario: {query.lastError().text()}")
+
+    # query.exec("DROP TRIGGER IF EXISTS INSERT INTODelete_Hazard")
+    # if not query.exec("""
+    #     CREATE TRIGGER IF NOT EXISTS Delete_Hazard
+    #     AFTER DELETE ON HazardSetup
+    #     BEGIN
+    #         DELETE FROM HazardAnswers
+    #         WHERE HazardName = OLD.HazardName;
+    #     END;
+    # """):
+    #     print(f"Error Delete_Hazard: {query.lastError().text()}")
+
+
+    ######### QUERIES FOR HAZARD ANSWERS TABLE UPDATE ##################
+
+    # query.exec("DROP TRIGGER IF EXISTS Insert_HazardAnswers_from_HazardSetup")
+    # if not query.exec("""
+    #     CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_HazardSetup
+    #     AFTER INSERT ON HazardSetup
+    #     BEGIN
+    #         INSERT INTO HazardAnswers (HazardName, ScenarioID)
+    #             SELECT NEW.HazardName, ScenarioID
+    #             FROM ScenarioSetup;
+    #     END;
+    # """):
+    #     print(f"Error Insert_HazardAnswers_from_HazardSetup: {query.lastError().text()}")
+
+    # query.exec("DROP TRIGGER IF EXISTS Insert_HazardAnswers_from_ScenarioSetup")
+    # if not query.exec("""
+    #     CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_ScenarioSetup
+    #     AFTER INSERT ON ScenarioSetup
+    #     BEGIN
+    #         INSERT INTO HazardAnswers (HazardName, ScenarioID)
+    #             SELECT HazardName, NEW.ScenarioID
+    #             FROM HazardSetup;
+    #     END;
+    # """):
+    #     print(f"Error Insert_HazardAnswers_from_ScenarioSetup: {query.lastError().text()}")'''
+
+def create_study_tables(Study_Database: QSqlDatabase):
+    
+    query = QSqlQuery(Study_Database)
+
     if not query.exec("CREATE TABLE IF NOT EXISTS IndicatorsSetup ("
                "IndicatorID TEXT UNIQUE, "
                "SelectedUnit TEXT, "
@@ -70,27 +244,7 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
                "SelectedState INTEGER )"
                ):
         print(f"Error creating IndicatorsSetup table: {query.lastError().text()}")
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS PerformanceAnswers ("
-               "ScenarioID INTEGER PRIMARY KEY, "
-               "M2111 TEXT, "
-               "M2112 TEXT, "
-               "M2121 TEXT, "
-               "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
-               ):
-        print(f"Error creating PerformanceAnswers table: {query.lastError().text()}")
-
-    if not query.exec("CREATE TABLE IF NOT EXISTS HazardAnswers ("
-            "HazardName TEXT, "
-            "ScenarioID INTEGER, "
-            "FOREIGN KEY (HazardName) REFERENCES HazardSetup (HazardName) ON DELETE CASCADE ON UPDATE CASCADE,"
-            "FOREIGN KEY (ScenarioID) REFERENCES ScenarioSetup (ScenarioID) ON DELETE CASCADE ON UPDATE CASCADE)"
-            ):
-        print(f"Error creating HazardAnswers table: {query.lastError().text()}")
-
-    for i in range(1, 11):
-        query.exec(f"ALTER TABLE HazardAnswers ADD COLUMN Class{i} TEXT")
-
+    
     if not query.exec("CREATE TABLE IF NOT EXISTS DimensionsWeight ("
                "DimensionID TEXT UNIQUE, "
                "DimensionName TEXT,"
@@ -112,112 +266,22 @@ def verifyAnswersDatabase(Answers_Database: QSqlDatabase):
                ):
         print(f"Error creating CriteriaWeight table: {query.lastError().text()}")
 
-    ######### QUERIES TO UPDATE TABLES ##################
+    """criar tabela na database se não existir B1UsesSetup"""
+    if not query.exec("CREATE TABLE IF NOT EXISTS B1UsesSetup ("
+                "CustomUse TEXT, "
+                "TotalSize NUMERIC, "
+                "MethodologyClass TEXT)"
+            ):
+            print(f"Failed to create table B1Settings. {query.lastError().text()}")
 
-    query.exec("DROP TRIGGER IF EXISTS Upload_ScenarioID_at_PerformanceAnswers")
-    if not query.exec("""
-        CREATE TRIGGER Upload_ScenarioID_at_PerformanceAnswers
-        AFTER INSERT ON ScenarioSetup
-        FOR EACH ROW
-        BEGIN
-            INSERT INTO PerformanceAnswers (ScenarioID) VALUES (NEW.ScenarioID);
-        END
-    """):
-        print(f"Error Upload_ScenarioID_at_PerformanceAnswers: {query.lastError().text()}")
-
-    query.exec("DROP TRIGGER IF EXISTS Update_ScenarioID")
-    if not query.exec("""
-        CREATE TRIGGER Update_ScenarioID
-        AFTER UPDATE OF ScenarioID ON ScenarioSetup
-        FOR EACH ROW
-        BEGIN
-            UPDATE PerformanceAnswers
-            SET ScenarioID = NEW.ScenarioID
-            WHERE ScenarioID = OLD.ScenarioID;
-
-            UPDATE HazardAnswers
-            SET ScenarioID = NEW.ScenarioID
-            WHERE ScenarioID = OLD.ScenarioID;
-        END
-    """):
-        print(f"Error Update_ScenarioID: {query.lastError().text()}")
-
-    query.exec("DROP TRIGGER IF EXISTS Update_HazardName")
-    if not query.exec("""
-        CREATE TRIGGER Update_HazardName
-        AFTER UPDATE OF HazardName ON HazardSetup
-        FOR EACH ROW
-        BEGIN
-            UPDATE HazardAnswers
-            SET HazardName = NEW.HazardName
-            WHERE HazardName = OLD.HazardName;
-        END
-    """):
-        print(f"Error Update_ScenarioID: {query.lastError().text()}")
-
-    query.exec("DROP TRIGGER IF EXISTS Delete_Scenario")
-    if not query.exec("""
-        CREATE TRIGGER Delete_Scenario
-        AFTER DELETE ON ScenarioSetup
-        FOR EACH ROW
-        BEGIN
-            DELETE FROM PerformanceAnswers
-            WHERE ScenarioID = OLD.ScenarioID;
-
-            DELETE FROM HazardAnswers
-            WHERE ScenarioID = OLD.ScenarioID;
-        END
-    """):
-        print(f"Error Delete_Scenario: {query.lastError().text()}")
-
-    query.exec("DROP TRIGGER IF EXISTS INSERT INTODelete_Hazard")
-    if not query.exec("""
-        CREATE TRIGGER IF NOT EXISTS Delete_Hazard
-        AFTER DELETE ON HazardSetup
-        BEGIN
-            DELETE FROM HazardAnswers
-            WHERE HazardName = OLD.HazardName;
-        END;
-    """):
-        print(f"Error Delete_Hazard: {query.lastError().text()}")
-
-
-    ######### QUERIES FOR HAZARD ANSWERS TABLE UPDATE ##################
-
-    query.exec("DROP TRIGGER IF EXISTS Insert_HazardAnswers_from_HazardSetup")
-    if not query.exec("""
-        CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_HazardSetup
-        AFTER INSERT ON HazardSetup
-        BEGIN
-            INSERT INTO HazardAnswers (HazardName, ScenarioID)
-                SELECT NEW.HazardName, ScenarioID
-                FROM ScenarioSetup;
-        END;
-    """):
-        print(f"Error Insert_HazardAnswers_from_HazardSetup: {query.lastError().text()}")
-
-    query.exec("DROP TRIGGER IF EXISTS Insert_HazardAnswers_from_ScenarioSetup")
-    if not query.exec("""
-        CREATE TRIGGER IF NOT EXISTS Insert_HazardAnswers_from_ScenarioSetup
-        AFTER INSERT ON ScenarioSetup
-        BEGIN
-            INSERT INTO HazardAnswers (HazardName, ScenarioID)
-                SELECT HazardName, NEW.ScenarioID
-                FROM HazardSetup;
-        END;
-    """):
-        print(f"Error Insert_HazardAnswers_from_ScenarioSetup: {query.lastError().text()}")
-
-    Answers_Database.commit()
-
-def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Target_Database: QSqlDatabase):
 
     # Create the Dimensions_Weight table
     query_A = QSqlQuery(REFUSS_Database)
-    query_B = QSqlQuery(Answers_Database)
+    query_B = QSqlQuery(Target_Database)
     
     # Retrieve the dimensions from the Dimensions table
-    query_A.exec('SELECT DimensionID, DimensionName FROM Dimensions')
+    query_A.exec('SELECT DimensionID, DimensionName FROM Dimensions;')
     
     dimensions = {}
     while query_A.next():
@@ -229,16 +293,19 @@ def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Answers_Database: QSql
         # Calculate and populate the weights for Dimensions_Weight table
         dimension_weight = 1 / len(dimensions)
 
-        query_B.prepare('INSERT INTO DimensionsWeight VALUES (?, ?, ?)')
-        query_B.addBindValue(dimension_id)
-        query_B.addBindValue(dimension_name)
-        query_B.addBindValue(dimension_weight)
-        query_B.exec()
+        if query_B.exec(f"INSERT INTO DimensionsWeight VALUES ('{dimension_id}', '{dimension_name}', '{dimension_weight}');"):
+            Target_Database.commit()
+        else:
+            print(f"Error inserting into DimensionsWeight: {query_B.lastError().text()}")
+        # query_B.addBindValue(dimension_id)
+        # query_B.addBindValue(dimension_name)
+        # query_B.addBindValue(dimension_weight)
+        # query_B.exec()
 
         # Retrieve the objectives within the current dimension
-        query_A.prepare('SELECT ObjectiveID, ObjectiveName FROM Objectives WHERE DimensionID = ?')
-        query_A.addBindValue(dimension_id)
-        query_A.exec()
+        query_A.exec(f"SELECT ObjectiveID, ObjectiveName FROM Objectives WHERE DimensionID = '{dimension_id}';")
+            # query_A.addBindValue(dimension_id)
+            # query_A.exec()
         objectives = {}
         while query_A.next():
             objective_id = query_A.value(0)
@@ -249,17 +316,24 @@ def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Answers_Database: QSql
             # Calculate and populate the weights for Objectives_Weight table within the current dimension
             objective_weight = 1 / len(objectives)
 
-            query_B.prepare('INSERT INTO ObjectivesWeight VALUES (?, ?, ?)')
-            query_B.addBindValue(objective_id)
-            query_B.addBindValue(objective_name)
-            query_B.addBindValue(objective_weight)
-            query_B.exec()
+            if query_B.exec(f"INSERT INTO ObjectivesWeight VALUES ('{objective_id}', '{objective_name}', '{objective_weight}');"):
+                Target_Database.commit()
+            else:
+                print(f"Error inserting into ObjectivesWeight: {query_B.lastError().text()}")
+            
+            # query_B.prepare('INSERT INTO ObjectivesWeight VALUES (?, ?, ?)')
+            # query_B.addBindValue(objective_id)
+            # query_B.addBindValue(objective_name)
+            # query_B.addBindValue(objective_weight)
+            # query_B.exec()
 
             # Retrieve the criteria within the current objective
-            query_A.prepare('SELECT CriteriaID, CriteriaName FROM Criteria WHERE ObjectiveID = ?')
-            query_A.addBindValue(objective_id)
-            query_A.exec()
+            # query_A.prepare('SELECT CriteriaID, CriteriaName FROM Criteria WHERE ObjectiveID = ?')
+            # query_A.addBindValue(objective_id)
+            # query_A.exec()
+            
             criteria = {}
+            query_A.exec(f"SELECT CriteriaID, CriteriaName FROM Criteria WHERE ObjectiveID = '{objective_id}';")
             while query_A.next():
                 criteria_id = query_A.value(0)
                 criteira_name = query_A.value(1)
@@ -269,17 +343,21 @@ def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Answers_Database: QSql
                 # Calculate and populate the weights for Criteria_Weight table within the current objective
                 criteria_weight = 1 / len(criteria)
 
-                query_B.prepare('INSERT INTO CriteriaWeight VALUES (?, ?, ?)')
-                query_B.addBindValue(criteria_id)
-                query_B.addBindValue(criteria_name)
-                query_B.addBindValue(criteria_weight)
-                query_B.exec()
+                if query_B.exec(f"INSERT INTO CriteriaWeight VALUES ('{criteria_id}', '{criteria_name}', '{criteria_weight}');"):
+                    Target_Database.commit()
+                else:
+                    print(f"Error inserting into CriteriaWeight: {query_B.lastError().text()}")
+                # query_B.prepare('INSERT INTO CriteriaWeight VALUES (?, ?, ?)')
+                # query_B.addBindValue(criteria_id)
+                # query_B.addBindValue(criteria_name)
+                # query_B.addBindValue(criteria_weight)
+                # query_B.exec()
 
-def createIndicatorsSetup(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
+def fillIndicatorsSetup(REFUSS_Database: QSqlDatabase, Target_Database: QSqlDatabase):
     # Connect to both databases
-    if REFUSS_Database.isOpen() and Answers_Database.isOpen():
+    if REFUSS_Database.isOpen() and Target_Database.isOpen():
         refuss_query = QSqlQuery(REFUSS_Database)
-        answers_query = QSqlQuery(Answers_Database)
+        answers_query = QSqlQuery(Target_Database)
 
         # Retrieve unique 'IndicatorID' values from the REFUSS_Database table
         refuss_query.exec("SELECT IndicatorID FROM IndicatorsLibrary")
@@ -296,35 +374,21 @@ def createIndicatorsSetup(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlD
                 print(f"Failed to insert {indicator_id} into Answers_Database")
 
         # Commit the changes to the Answers_Database
-        Answers_Database.commit()
+        Target_Database.commit()
     else:
         print("Both databases must be open before running this function")    
 
-def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase):
 
-    """criar tabela na database se não existir B1UsesSetup"""
-    if not Answers_Database.isOpen():
-        QMessageBox.critical(None, "Database Error", "Answers_Database is not open.")
-    else:
-        # Criar a tabela se ela não existir
-        query = QSqlQuery(Answers_Database)
-        if not query.exec("CREATE TABLE IF NOT EXISTS B1UsesSetup ("
-                "CostumUse TEXT, "
-                "TotalSize NUMERIC, "
-                "MethodologyClass TEXT)"
-            ):
-            print(f"Failed to create table B1Settings. {query.lastError().text()}")
-    
-    
+"""def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase, Situation: M_AnalysisManager.Situation):
+  
     '''Criar as restantes tabelas'''
-    ConsequencesLibrary = fetch_table_from_database(REFUSS_Database, "IndicatorsLibrary")
-    ConsequencesLibrary.set_index("IndicatorID", inplace = True)
+    IndicatorsLibrary = fetch_table_from_database(REFUSS_Database, "IndicatorsLibrary")
+    IndicatorsLibrary.set_index("IndicatorID", inplace = True)
         
     query = QSqlQuery(Answers_Database)
-
     
     Indicators_tables = Answers_Database.tables()
-    for indicatorID, properties in ConsequencesLibrary.iterrows():
+    for indicatorID, properties in IndicatorsLibrary.iterrows():
         ClassesLabels = properties["ClassesLabel"].split("; ")
         
         # Generate the SQL query to create the table with dynamic column names
@@ -336,47 +400,45 @@ def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlD
         
         if indicatorID not in Indicators_tables:
             if indicatorID == 'B1':
-                scenario_column = f"ScenarioID INTEGER UNIQUE REFERENCES ScenarioSetup (ScenarioID), "
+                rainfall_column = f"RainfallID INTEGER UNIQUE"
                 extra_column = f"BuildingUse TEXT , "
             else:
-                scenario_column = "ScenarioID INTEGER UNIQUE REFERENCES ScenarioSetup (ScenarioID), "
+                rainfall_column = "RainfallID INTEGER UNIQUE"
                 extra_column = ""
             if query.exec(f"CREATE TABLE {indicatorID} ("
-                    f"{scenario_column}"
+                    f"{rainfall_column}"
                     f"{extra_column}"
                     f"{columns_str})"
                     ):
 
                 if indicatorID == 'B1':
-                    updateB1Table(Answers_Database)
+                    updateB1TableUses(Answers_Database)
                 else:
                     # Create a different variable for the inner loop
                     inner_query = QSqlQuery(Answers_Database)
-                    scenario_query = QSqlQuery(Answers_Database)
-                    scenario_query.exec("SELECT ScenarioID FROM ScenarioSetup")
-                    
-                    while scenario_query.next():
-                        scenario_id = scenario_query.value(0)
-                        if not inner_query.exec(f"INSERT INTO {indicatorID} (ScenarioID) VALUES ('{scenario_id}')"):
-                            print(f"Error inserting ScenarioID {scenario_id} into {indicatorID}: {query.lastError().text()}")
+                    rainfall_values = Situation.rainfall
+                    for rainfall_id in rainfall_values:
+                        if not inner_query.exec(f"INSERT INTO {indicatorID} (RainfallID) VALUES ('{rainfall_id}')"):
+                            print(f"Error inserting RainfallID {rainfall_id} into {indicatorID}: {query.lastError().text()}")
             else:
-                print(f"Error creating {indicatorID} table: {query.lastError().text()} in setConsequencesTables")
+                print(f"Error creating {indicatorID} table in setConsequencesTables: {query.lastError().text()} in setConsequencesTables")
+"""
 
-def updateB1Table(Answers_Database: QSqlDatabase):
-    if not Answers_Database.isValid() or not Answers_Database.isOpen():
+"""def setB1Table(Situation_Database: QSqlDatabase, Situation: M_AnalysisManager.Situation):
+    if not Situation_Database.isValid() or not Situation_Database.isOpen():
         return
 
-    query = QSqlQuery(db = Answers_Database)
+    query = QSqlQuery(Situation_Database)
     
     custom_uses = []
-    query.exec("SELECT DISTINCT CostumUse FROM B1UsesSetup")
+    query.exec("SELECT DISTINCT customUse FROM B1UsesSetup")
     while query.next():
         use = query.value(0)
         custom_uses.append(use)
                 
-    # Get the list of unique ScenarioID values from the B1 table
+    # Get the list of unique RainfallID values from the B1 table
     scenario_ids = []
-    query.exec("SELECT DISTINCT ScenarioID FROM ScenarioSetup")
+    query.exec("SELECT DISTINCT RainfallID FROM ScenarioSetup")
     while query.next():
         scenario_id = query.value(0)
         scenario_ids.append(scenario_id)
@@ -385,20 +447,17 @@ def updateB1Table(Answers_Database: QSqlDatabase):
     for scenario_id in scenario_ids:
         for custom_use in custom_uses:
             query.exec(
-                f"""
+                f"
                 SELECT BuildingUse FROM B1
-                WHERE ScenarioID = {scenario_id} AND BuildingUse = '{custom_use}'
-                """
+                WHERE RainfallID = {scenario_id} AND BuildingUse = '{custom_use}'
+                "
             )
 
             # If not found, insert a new row
             if not query.next():
                 query.exec(
-                    f"""
-                    INSERT INTO B1 (ScenarioID, BuildingUse)
-                    VALUES ({scenario_id}, '{custom_use}')
-                    """
-                )
+                    f"INSERT INTO B1 (RainfallID, BuildingUse) VALUES ({scenario_id}, '{custom_use}')"
+                    )
                 # Handle any errors that might occur
                 if not query.isActive():
                     print(f"Error inserting data: {query.lastError().text()}")
@@ -406,18 +465,63 @@ def updateB1Table(Answers_Database: QSqlDatabase):
     # Remove CustomUse entries from the B1 table if they were removed
     for scenario_id in scenario_ids:
         query.exec(
-            f"""
+            f"
             DELETE FROM B1
-            WHERE ScenarioID = {scenario_id} AND BuildingUse NOT IN ({", ".join(["'" + custom_use + "'" for custom_use in custom_uses])})
-            """
+            WHERE RainfallID = {scenario_id} AND BuildingUse NOT IN ({", ".join(["'" + custom_use + "'" for custom_use in custom_uses])})
+            "
         )
         # Handle any errors that might occur
         if not query.isActive():
             print(f"Error deleting data: {query.lastError().text()}")
 
     # Commit the changes to the database
-    if not Answers_Database.commit():
-        print(f"Error committing changes in UpdateB1Table: {query.lastError().text()}")
+    if not Situation_Database.commit():
+        print(f"Error committing changes in setB1Table: {query.lastError().text()}")
+"""
+
+def updateB1TableUses(Situation_Database: QSqlDatabase,
+                  Study_Database: QSqlDatabase,
+                  Situation: M_SituationManager.Situation,
+                  old_value: str = None,
+                  new_value: str = None):
+    
+    if not Situation_Database.isValid() or not Situation_Database.isOpen():
+        return
+    
+    updated_custom_uses = []
+    query_updated_uses = QSqlQuery(Study_Database)
+    query_updated_uses.exec("SELECT DISTINCT CustomUse FROM B1UsesSetup")
+    while query_updated_uses.next():
+        use = query_updated_uses.value(0)
+        updated_custom_uses.append(use)
+
+    rainfalls = Situation.rainfall
+
+    query_situation = QSqlQuery(Situation_Database)
+
+    if not old_value and new_value:         # Insert new building use value
+        for rain in rainfalls:
+            if query_situation.exec(f"INSERT INTO B1 (RainfallID, BuildingUse) VALUES ({rain}, '{new_value}');"):
+                Situation_Database.commit()
+            else:
+                print(f"Error inserting data in updateB1TableUses: {query_situation.lastError().text()}") 
+    elif old_value and not new_value:       # Delete old value
+        if query_situation.exec(f"DELETE FROM B1 WHERE BuildingUse = '{old_value}';"):
+            Situation_Database.commit()
+        else:
+            print(f"Error deleting data in updateB1TableUses: {query_situation.lastError().text()}")
+    elif old_value and new_value:           # Update the old value with the new value -> data changed
+        for custom_use in updated_custom_uses:
+            if custom_use == new_value:  
+                if query_situation.exec(f"UPDATE B1 SET BuildingUse = '{new_value}' WHERE BuildingUse = '{old_value}';"):
+                    Situation_Database.commit()
+                else:
+                    print(f"Error updating data in updateB1TableUses: {query_situation.lastError().text()}")
+    elif not old_value and not new_value:   # in the case of creating the table (1st time call)
+        for rain in rainfalls:
+            for custom_use in updated_custom_uses:
+                    if query_situation.exec(f"INSERT INTO B1 (RainfallID, BuildingUse) VALUES ({rain}, '{custom_use}');"):
+                        Situation_Database.commit()
  
 def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
 
@@ -460,9 +564,9 @@ def getREFUSSDatabase(REFUSS_Database: QSqlDatabase):
 def ObjectivesFromDimension(REFUSS_Database: QSqlDatabase, dimension_id: int):
     
     query = QSqlQuery(REFUSS_Database)
-    query.prepare("SELECT ObjectiveID, ObjectiveSubID, ObjectiveName FROM Objectives WHERE DimensionID = ?")
-    query.addBindValue(dimension_id)
-    query.exec()
+    query.exec(f"SELECT ObjectiveID, ObjectiveSubID, ObjectiveName FROM Objectives WHERE DimensionID = '{dimension_id}';")
+    # query.addBindValue(dimension_id)
+    # query.exec()
 
     objectives = []
     while query.next():
@@ -492,26 +596,27 @@ def CriteriaFromDimension(REFUSS_Database: QSqlDatabase, dimension_id: int):
 
     return criteria
 
-def FillNewAnswersDatabase(AnswersDatabase: QSqlDatabase, metrics: pd.DataFrame):
+def fillMetricAnswersDatabase(AnswersDatabase: QSqlDatabase, metrics: pd.DataFrame):
 
     # Clean existing contents of the answers table
-    tables = AnswersDatabase.tables()
-    query = QSqlQuery(AnswersDatabase)
-    for table in tables:
-        query.exec(f"DELETE FROM {table}")
+    # tables = AnswersDatabase.tables()
+    # query = QSqlQuery(AnswersDatabase)
+    # for table in tables:
+    #     query.exec(f"DELETE FROM {table}")
 
-    query.clear()
-
-    query = QSqlQuery(AnswersDatabase)
-    query.prepare("INSERT INTO MetricAnswers (criteriaID, metricID) VALUES (:value1, :value2)")
-
+    # query.clear()
+    
     MetricsID = metrics.index.to_list()
     CriteriaID = metrics["CriteriaID"]
+    
+    query = QSqlQuery(AnswersDatabase)
 
     for metric, criteria in zip(MetricsID, CriteriaID):
-        query.bindValue(":value1", criteria)
-        query.bindValue(":value2", metric)
-        query.exec()
+        if query.exec(f"INSERT INTO MetricAnswers (criteriaID, metricID) VALUES ('{criteria}', '{metric}')"):
+            AnswersDatabase.commit()        
+        # query.bindValue(":value1", criteria)
+        # query.bindValue(":value2", metric)
+        # query.exec()
 
 def save_answer_to_AnswersDatabase(AnswersDatabase: QSqlDatabase, metricID: str, new_answer: str, newcomment: str):
     query = QSqlQuery(AnswersDatabase)
@@ -520,11 +625,18 @@ def save_answer_to_AnswersDatabase(AnswersDatabase: QSqlDatabase, metricID: str,
     query.bindValue(":answer", new_answer)
     query.bindValue(":comment", newcomment)
     query.exec()
+
+def save_comment_to_AnswersDatabase(AnswersDatabase: QSqlDatabase, metricID: str, newcomment: str):
+    query = QSqlQuery(AnswersDatabase)
+    query.prepare("UPDATE MetricAnswers SET comment = :comment WHERE metricID = :metricID")
+    query.bindValue(":metricID", metricID)
+    query.bindValue(":comment", newcomment)
+    query.exec()
     
 def fetch_table_from_database(Database, TableName):
     if not Database.isOpen():
-        print("Failed to connect to the database.")
-        sys.exit(1)
+        print(f"Failed to connect to the database {Database} to fetch table {TableName}.")
+        sys.exit()
 
     query = QSqlQuery(Database)
     query.exec(f"SELECT * FROM {TableName}")

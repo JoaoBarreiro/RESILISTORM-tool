@@ -1,46 +1,172 @@
+import numpy as np
 import pandas as pd
+import re
 
+from PySide6.QtWidgets import QMessageBox
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 
-from M_HazardClasses import ClassHazard
+from M_HazardClasses import ClassHazard, BuildingHazard
+from M_SituationManager import Situation
 from M_OperateDatabases import fetch_table_from_database
 
-def Caculate_ConsequencesRating(AnswersDatabase: QSqlDatabase,
-                               IndicatorsLibrary: pd.DataFrame,
-                               ScenarioSetup: pd.DataFrame,
-                               IndicatorsSetup: pd.DataFrame):
-       
+
+def Caculate_OverallDimensionRating(
+    Weights: pd.DataFrame,
+    FunctionalDimensionRating: float,
+    PerformanceDimensionRating: float):
+    
+    Dim_weights = Weights["Dimensions"]
+    
+    D1_Weight = Dim_weights.at["1", "Weight"]
+    D2_Weight = Dim_weights.at["2", "Weight"]
+    
+    OverallRating = FunctionalDimensionRating * D1_Weight + PerformanceDimensionRating * D2_Weight
+    
+    return OverallRating
+
+def Caculate_PerformanceDimensionRating(
+    Weights: pd.DataFrame,
+    SPR_Integral: float,
+    SCR_Integral: float):
+    
+    Obj_weights = Weights["Objectives"]
+    Obj_weights = Obj_weights[Obj_weights.index.str.startswith("2")]
+    
+    SP_Weight = Obj_weights.at["2.1", "Weight"]
+    SC_Weight = Obj_weights.at["2.2", "Weight"]
+    
+    PDRating = SPR_Integral * SP_Weight + SCR_Integral * SC_Weight
+    
+    return PDRating
+
+
+def Calculate_SystemPerformanceRating(
+            AnswersDatabase = QSqlDatabase,
+            IndicatorsLibrary = pd.DataFrame,
+            IndicatorsSetup = pd.DataFrame,
+            Situation = Situation):
+    
     SelectedIndicators = IndicatorsSetup[IndicatorsSetup['SelectedState'] == 1]
-            
-    PerformanceConsequenceRating = pd.DataFrame(columns = ScenarioSetup.index, index = IndicatorsSetup.index)
-            
-    for ind_id, ind_prop in SelectedIndicators.iterrows():
+    #SelectedIndicators.set_index("IndicatorID", inplace=True)
+    
+    SPR_Indicators = IndicatorsLibrary[IndicatorsLibrary.index.str.startswith("SRP")]
+    # SPR_Indicators.set_index("IndicatorID", inplace=True)
+    
+    SPR_Answers = pd.DataFrame(index = Situation.rainfall, columns = SPR_Indicators.index)
+    SPR_Answers.index.name = "RainfallID"
+    
+    for rainfall in Situation.rainfall:
+        for indicatorID, _ in SPR_Indicators.iterrows():
+            if indicatorID.startswith("SRP"): #verify if needed
+                query = QSqlQuery(AnswersDatabase)
+                if query.exec(f"SELECT Value FROM {indicatorID} WHERE RainfallID = {rainfall};"):
+                    if query.next():
+                        answer = query.value(0)
+                    if answer:
+                        answer = float(answer)
+                    if answer is None:
+                        answer = 0
+                    SPR_Answers.at[rainfall, indicatorID] = answer
+                else:
+                    print(f"Error in query at Calculate_SystemPerformanceRating: {AnswersDatabase.lastError().text()}")
+
+    common_indices = SPR_Answers.T.index.intersection(SelectedIndicators.index)
+    
+    SPR_filtered = SPR_Answers.loc[:, common_indices]
+   
+    return SPR_filtered
+
+def Caculate_ConsequencesRating(
+    StudyDatabase: QSqlDatabase,
+    AnswersDatabase: QSqlDatabase,
+    IndicatorsLibrary: pd.DataFrame,
+    IndicatorsSetup: pd.DataFrame,
+    Situation = Situation):
+
+    SelectedIndicators = IndicatorsSetup[IndicatorsSetup['SelectedState'] == 1]
+    
+    Consequences_indicators = []
+    
+    for ind_id, ind_prop in IndicatorsLibrary.iterrows():
+        ind_class = re.sub(r'\d', '', ind_id)
+        if ind_class != "SRP":
+            Consequences_indicators.append(ind_id)
+    
+    ConsequencesIndicatorsSetup = IndicatorsSetup[IndicatorsSetup.index.isin(Consequences_indicators)]
+    
+    SCR_Answers = pd.DataFrame(index = Situation.rainfall, columns = Consequences_indicators)
+ 
+    for ind_id, ind_prop in ConsequencesIndicatorsSetup.iterrows():
         
-        IndAns = fetch_table_from_database(AnswersDatabase, f"{ind_id}")
-        IndAns.set_index("ScenarioID", inplace=True)        
+        ind_ans = fetch_table_from_database(AnswersDatabase, f"{ind_id}")
+        ind_ans.set_index("RainfallID", inplace=True)  
         
-        if not ind_id.startswith("SRP"):           
-            ind_unit = ind_prop["SelectedUnit"]
+        ind_unit = ind_prop["SelectedUnit"]
         if "[%]" in ind_unit:
             unit_type = 1
         else:
             unit_type = 2
         
-        if not ind_id.startswith(("SRP", "B1")):
-            for scn_id, values in IndAns.iterrows():
+        if ind_id != "B1":
+            for rainfall, values in ind_ans.iterrows():
                 IndResilience = 0
                 if any(value == '' for value in values):
-                    IndResilience = None
+                    IndResilience = 0
+                    # QMessageBox.critical("Consequences Rating Calculus ", f"Indicator {ind_id} has empty values at rainfall {rainfall}-RT")
                 else:
                     values = values.astype(float).tolist()
                     IndResilience = ClassHazard(
                         Methodology = ind_id,
                         ClassesValues = values,
-                        UnitType = unit_type).calculateHazard()
-             
-                PerformanceConsequenceRating.loc[ind_id, scn_id] = IndResilience
+                        UnitType = unit_type).calculateHazard()   
+                SCR_Answers.at[rainfall, ind_id] = IndResilience
+                print(f"{ind_id} - {rainfall} years: {IndResilience}")
                 
-    return PerformanceConsequenceRating.T
+        elif ind_id == "B1":
+            for rainfall in Situation.rainfall:
+                values = ind_ans[ind_ans.index == rainfall]
+                CustomUses = fetch_table_from_database(StudyDatabase, "B1UsesSetup")
+                IndResilience = BuildingHazard(
+                    Methodology = ind_id,
+                    UserCustomUses = CustomUses,
+                    BuildingAnswers = values).calculateHazard()  
+                SCR_Answers.at[rainfall, ind_id] = IndResilience
+                print(f"{ind_id} - {rainfall} years: {IndResilience}")
+
+    common_indices = SCR_Answers.T.index.intersection(SelectedIndicators.index)
+    
+    SCR_filtered = SCR_Answers.loc[:, common_indices]
+
+    return SCR_filtered
+
+    """    for ind_id, ind_prop in SelectedIndicators.iterrows():
+            
+            IndAns = fetch_table_from_database(AnswersDatabase, f"{ind_id}")
+            IndAns.set_index("ScenarioID", inplace=True)        
+            
+            if not ind_id.startswith("SRP"):           
+                ind_unit = ind_prop["SelectedUnit"]
+            if "[%]" in ind_unit:
+                unit_type = 1
+            else:
+                unit_type = 2
+            
+            if not ind_id.startswith(("SRP", "B1")):
+                for scn_id, values in IndAns.iterrows():
+                    IndResilience = 0
+                    if any(value == '' for value in values):
+                        IndResilience = None
+                    else:
+                        values = values.astype(float).tolist()
+                        IndResilience = ClassHazard(
+                            Methodology = ind_id,
+                            ClassesValues = values,
+                            UnitType = unit_type).calculateHazard()
+                
+                    PerformanceConsequenceRating.loc[ind_id, scn_id] = IndResilience
+                    
+        return PerformanceConsequenceRating.T
+    """
 
 def Calculate_FunctionalRating(Weights: pd.DataFrame, Metrics: pd.DataFrame, MetricsOptions: pd.DataFrame, MetricsAnswers:pd.DataFrame):
 
@@ -81,11 +207,11 @@ def Calculate_FunctionalRating(Weights: pd.DataFrame, Metrics: pd.DataFrame, Met
         if not row["answer"]:       # If no answer -> the answer does not count for the score -> the criteria cant reach rating 1
             score = 'NA'
         else:
-            if Metrics.loc[metricID, "Answer_Type"] == "Single choice":
+            if Metrics.loc[metricID, "AnswerType"] == "Single choice":
                     answer_index = int(row["answer"].split("_")[0])
                     score = singlechoicescore(answer_index, answer_nr_options)
 
-            elif Metrics.loc[metricID, "Answer_Type"] == "Multiple choice":
+            elif Metrics.loc[metricID, "AnswerType"] == "Multiple choice":
                 answer_indexes = []
                 for answer in row["answer"].split(";"):
                     answer_indexes.append(int(answer.split("_")[0]))
@@ -202,3 +328,23 @@ def Calculate_Completness(Functional_Answers):
     summary_df["Missing"] = 100 - summary_df["Completness"]
 
     return summary_df
+
+def Calculate_Integral(Dataframe: pd.DataFrame):
+    
+    x_values = Dataframe.index.values
+    y_values =  Dataframe["Average"].values.astype(float)
+    
+    if len(x_values) > 1:
+        # Calculate the area under the values
+        average_area = np.trapz(y_values, x_values)
+        # Calculate the total width of the x-axis range
+        total_width = x_values[-1] - x_values[0]
+        # Calculate the normalized integral 
+        NormalizedIntegral = average_area / total_width
+
+    elif len(x_values) == 1:
+        NormalizedIntegral = Dataframe["Average"].values[0]
+        
+    return NormalizedIntegral
+    
+    
