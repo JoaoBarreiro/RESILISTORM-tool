@@ -260,10 +260,10 @@ class STUDY():
 
     def set_files_and_paths(self, WelcomeDialog: WelcomeDialog):
         # Create a copy of the Methodology Database and Study Structure Database to the Study Directory
-        Original_Methodology = 'database\REFUSS_V8.db'
+        Original_Methodology = 'database\RESILISTORM_V0.db'
         new_methodology_filename  = "RESILISTORM.db"
 
-        Original_Study = 'database\Study_Structure.db'
+        Original_Study = 'database\STUDY_Structure.db'
         new_study_filename  = f"{self.Name}-STUDY.db"
 
         if WelcomeDialog.status == "New":

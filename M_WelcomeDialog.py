@@ -6,8 +6,8 @@ import re
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QDialog
 from PySide6.QtCore import Qt
 
-from W_WelcomeDialog import Ui_WelcomeDialog
-from W_NewStudyDialog import Ui_NewStudyDialog
+from GUI_Python.W_WelcomeDialog import Ui_WelcomeDialog
+from GUI_Python.W_NewStudyDialog import Ui_NewStudyDialog
 
 class NewStudyDialog(QDialog):
     def __init__(self):

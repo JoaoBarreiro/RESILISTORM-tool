@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QCoreApplication
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QValidator
 
-from W_MainPage_V7 import Ui_MainWindow
+from GUI_Python.W_MainPage_V7 import Ui_MainWindow
 
 from M_WelcomeDialog import WelcomeDialog
 
@@ -1431,9 +1431,7 @@ def main():
         STUDY_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection2")
         ANSWERS_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection3")
         temp_DB = QSqlDatabase.addDatabase("QSQLITE", "TemporaryConnection")
-
-        
-        
+       
         Study = STUDY(WelcomeDialog = WelcomePage,
                 Methodolohy_Database = RESILISTORM_DB,
                 Study_Database = STUDY_DB,
