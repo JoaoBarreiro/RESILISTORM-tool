@@ -1,16 +1,15 @@
-from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
-                               QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup, QComboBox, QTableView, QMenu,
-                               QStyledItemDelegate, QHeaderView, QScrollArea, QAbstractItemView
+from PySide6.QtWidgets import (QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QSpacerItem, QSizePolicy, QDialog, QLabel, 
+                               QMessageBox, QFrame, QCheckBox, QRadioButton, QLabel, QButtonGroup, QComboBox, QTableView, QMenu,
+                               QStyledItemDelegate, QHeaderView, QScrollArea, QAbstractItemView, QStyleOptionViewItem
                                )
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
 from PySide6.QtGui import QAction
 
-from M_IndicatorsSelection import (IndicatorsSelection, flatten_dict)
-from M_OperateDatabases import updateB1TableUses
+from M_IndicatorsSelection import IndicatorsSelection, flatten_dict
+from M_OperateDatabases import fetch_table_from_database
 
-from W_SetupWindow import Ui_SetupWindow
 from M_Fonts import MyFont
 
 import pandas as pd
@@ -184,19 +183,23 @@ def flatten_dict(dict):
 class PerformanceSetup(QWidget):
     
     def __init__(self,
-                 IndicatorsClassesLibrary: pd.DataFrame,
-                 IndicatorsLibrary: pd.DataFrame,
-                 IndicatorsSetup: pd.DataFrame,
-                 study_db: QSqlDatabase,
+                 Methodology_Database: QSqlDatabase,
+                 Study_Database: QSqlDatabase,
                  IndicatorsSelector: IndicatorsSelection):
         super().__init__()
 
-        self.indicators_classes = IndicatorsClassesLibrary.copy(deep=True)
-        self.indicators_library = IndicatorsLibrary.copy(deep=True)
-        self.indicators_setup = IndicatorsSetup         #changes commited within the class will reflect on the original database
+        self.indicators_library = fetch_table_from_database(Methodology_Database, "IndicatorsLibrary")
+        self.indicators_library.set_index("IndicatorID", inplace=True)
+
+        self.indicators_classes = fetch_table_from_database(Methodology_Database, "IndicatorsClassesLibrary")
+        self.indicators_classes.set_index("IndicatorClassID", inplace=True)
+        
+        self.indicators_setup = fetch_table_from_database(Study_Database, "IndicatorsSetup")
+        self.indicators_setup.set_index("IndicatorID", inplace=True)
+
         self.indicator_selector = IndicatorsSelector
         
-        self.study_db = study_db
+        self.study_db = Study_Database
     
         if not self.study_db.isValid():
             QMessageBox.critical(self, "Database Error", "Invalid database connection.")
@@ -533,11 +536,11 @@ class B1UsesSetupTable(QTableView):
         self.user_uses_model.setHeaderData(0, Qt.Horizontal, "Custom building use")
         self.user_uses_model.setHeaderData(1, Qt.Horizontal, "Total size")
         self.user_uses_model.setHeaderData(2, Qt.Horizontal, "Methodology corresponding use")
-
+       
         self.setModel(self.user_uses_model)
         self.resizeColumnsToContents()
         self.resizeColumnsToContents()
-        self.setEditTriggers(QTableView.AllEditTriggers)
+        self.setEditTriggers(QAbstractItemView.DoubleClicked)
 
         # Set the delegate for the third column to use ComboBox
         self.setItemDelegateForColumn(2, B1ComboBoxDelegate(self))
@@ -548,18 +551,17 @@ class B1UsesSetupTable(QTableView):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.showContextMenu)
  
-
         self.user_uses_model.dataChanged.connect(self.handleDataChanged)
 
     def handleDataChanged(self, top_left, bottom_right, roles):
         # This is called after the user has finished editing a cell
         if top_left.column() == 0:
             row = top_left.row()
-            old_value = self.retrieveOldValue(row, "CostumUse")
+            old_value = self.retrieveOldValue(row, "CustomUse")
             new_value = self.user_uses_model.data(top_left, Qt.DisplayRole)
-            if old_value != new_value:
+            if old_value and old_value != new_value:
                 self.user_uses_model.submitAll()
-                self.user_uses_model.database().commit() 
+                 
                 self.building_uses_modified.emit(old_value, new_value)
                
     def retrieveOldValue(self, row, column_name):
@@ -574,17 +576,15 @@ class B1UsesSetupTable(QTableView):
         row = self.user_uses_model.rowCount()
 
         record = self.user_uses_model.record()
-        record.setValue("CostumUse", "Edit here...")
+        record.setValue("CustomUse", "Edit here...")
 
-        #self.user_uses_model.insertRow(row)
         self.user_uses_model.insertRecord(row, record)
 
-        #self.user_uses_model.submitAll()
         self.reset()
         self.user_uses_model.submitAll()
         self.user_uses_model.select()
-        self.user_uses_model.database().commit() 
-        self.building_uses_modified.emit('', record)
+        # self.user_uses_model.database().commit()
+        self.building_uses_modified.emit('', record.value("CustomUse"))
    
     def removeCurrentRow(self):
         # Remove the current row from the table
@@ -628,14 +628,14 @@ class B1ComboBoxDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.options = ["Residential", "Commercial", "Industrial"]
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: int):
         if index.column() == 2:  # Only create an editor for the third column
             editor = QComboBox(parent)
             editor.addItems(self.options)
             return editor
         return super().createEditor(parent, option, index)
 
-    def setEditorData(self, editor, index):
+    def setEditorData(self, editor: QComboBox, index: str):
         if index.column() == 2:  # Set the current index of the ComboBox based on the item data
             current_data = index.data(Qt.DisplayRole)
             if current_data in self.options:
@@ -643,7 +643,7 @@ class B1ComboBoxDelegate(QStyledItemDelegate):
         else:
             super().setEditorData(editor, index)
 
-    def setModelData(self, editor, model, index):
+    def setModelData(self, editor: QComboBox, model: QSqlTableModel, index: int):
         if index.column() == 2:  # Set the item data based on the current index of the ComboBox
             model.setData(index, editor.currentText(), Qt.EditRole)
         else:

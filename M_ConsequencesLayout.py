@@ -1,11 +1,7 @@
-from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QCheckBox, QStackedWidget, QListView,
-                                QComboBox, QTreeWidgetItem, QWidget, QInputDialog, QSpacerItem,
-                                QSizePolicy, QLabel, QMessageBox, QFrame, QFormLayout,QLineEdit,
-                                QPushButton, QTableView)
+from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QWidget,QSpacerItem, QSizePolicy, QLabel, QFrame, QTableView)
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import (QStandardItemModel, QStandardItem)
-from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+from PySide6.QtSql import QSqlDatabase, QSqlTableModel
 
 from M_Fonts import MyFont
 

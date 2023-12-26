@@ -1,24 +1,24 @@
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QLabel, QListWidget,
-    QPushButton, QWidget, QLineEdit, QTableWidget, QTableWidgetItem,
-    QComboBox, QFormLayout, QVBoxLayout, QInputDialog, QHBoxLayout, QAbstractItemView, QMessageBox,
-    QDialogButtonBox, QDialog, QSpacerItem, QSizePolicy, QTableView, QHeaderView
-    )
+from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QLabel, QListWidget,
+                               QPushButton, QWidget, QLineEdit, QComboBox, QFormLayout, QVBoxLayout,
+                               QInputDialog, QHBoxLayout, QAbstractItemView, QMessageBox,
+                               QDialogButtonBox, QDialog, QSpacerItem, QSizePolicy, QTableView, QHeaderView, QLayout
+                               )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtSql import QSqlTableModel, QSqlDatabase, QSqlQuery
 
-import os
 import re
-import pandas as pd
 
 import M_OperateDatabases
 from M_Fonts import MyFont
+
 
 class ListEditor(QWidget):
     
     lists_changed = Signal(list, list, list)
     
-    def __init__(self, layout, database):
+    def __init__(self,
+                 layout: QLayout,
+                 database: QSqlDatabase):
         super().__init__()
         self.configurations = QListWidget()
         self.scenarios = QListWidget()
@@ -166,21 +166,18 @@ def QList_to_list(Qlist):
 
 class SituationGenerator(QWidget):
     
-    situationsModified = Signal(str, int)  # str: type of modification, int: situation ID
+    situationModified = Signal(str, int)  # str: type of modification, int: situation ID
 
     def __init__(self,
-                 target_layout,
-                 list_editor,
-                 study_database,
-                 study_directory,
-                 methodology_database):
+                 target_layout: QLayout,
+                 list_editor: ListEditor,
+                 Study_Database: QSqlDatabase
+                 ):
         super().__init__()
 
         self.list_editor = list_editor
         self.main_layout = target_layout
-        self.study_db = study_database
-        #self.directory = study_directory
-        #self.methodology_db = methodology_database
+        self.study_db = Study_Database
         
         self.situation_name_edit = QLineEdit()
         self.situation_config_combobox = QComboBox()
@@ -221,10 +218,7 @@ class SituationGenerator(QWidget):
         self.delete_situation_button.clicked.connect(self.delete_situation)
 
         self.setup_ui()
-        
-        #initialize situations
-        self.update_Situations()
-        
+
         self.initialize_combo_boxes()
         self.list_editor.lists_changed.connect(self.update_combobox_items)
         
@@ -251,13 +245,6 @@ class SituationGenerator(QWidget):
         self.main_layout.addLayout(left_col)
         self.main_layout.addWidget(self.situations_table)
         self.main_layout.setStretch(1, 2)
-
-    def update_Situations(self):
-        self.Situations = {}
-        for index, row in self.get_situations().iterrows():
-            situation = Situation()
-            situation.update_from_generator(self, row["SituationID"])
-            self.Situations[situation.id] = situation
         
     def initialize_combo_boxes(self):
         self.situation_config_combobox.addItems(self.list_editor.config_list)
@@ -319,8 +306,8 @@ class SituationGenerator(QWidget):
         #Clear the name input field
         self.situation_name_edit.setText("")
         
-        self.update_Situations()
-        self.situationsModified.emit("new", situation_id)
+        # self.update_Situations()
+        self.situationModified.emit("new", situation_id)
 
     def edit_situation(self):
         selected_row = self.situations_table.currentIndex().row()
@@ -350,8 +337,8 @@ class SituationGenerator(QWidget):
                 self.situations_model.setData(self.situations_model.index(selected_row, 4), updated_return_period)
                 self.situations_model.submitAll()
                 
-                self.update_Situations()
-                self.situationsModified.emit("update", id)
+                # self.update_Situations()
+                self.situationModified.emit("update", id)
                 #self.rainfallModified.emit(id)
         
     def delete_situation(self):
@@ -374,8 +361,8 @@ class SituationGenerator(QWidget):
                         self.situations_model.select()
                         self.situations_table.clearSelection()
                         
-                        self.update_Situations()
-                        self.situationsModified.emit("delete", situation_id)
+                        # self.update_Situations()
+                        self.situationModified.emit("delete", situation_id)
                         #self.situationDeleted.emit(situation_id)
                         
     def update_combobox_items(self, configurations, scenarios, return_periods):
@@ -389,9 +376,10 @@ class SituationGenerator(QWidget):
         self.situation_scenario_combobox.addItems(scenarios)
         self.situation_return_period_list.addItems(return_periods) 
 
-    def get_situations(self):     
+    def get_situations_table(self):     
         if self.study_db.isValid() or not self.study_db.isOpen():
             situations_dataframe = M_OperateDatabases.fetch_table_from_database(self.study_db, "StudySituations")
+ 
             return situations_dataframe
     
     def situations_input_verify(self, name, config, scenario, return_period):
@@ -497,7 +485,7 @@ class EditSituationDialog(QDialog):
         return_period = "; ".join(selected_RT_text)
         return return_period
 
-class Situation():
+"""class Situation():
 
     def __init__(self):
 
@@ -530,7 +518,7 @@ class Situation():
             self.timeframe = selected_situation["TimeFrame"]
             rainfall_values = selected_situation["Rainfall"].split("; ")
             self.rainfall = [int(value) for value in rainfall_values]  #list of Rainfall return periods as integers!
-            
+"""
 
 if __name__ == "__main__":
     app = QApplication([])

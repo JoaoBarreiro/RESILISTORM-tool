@@ -3,18 +3,12 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QVBoxLayo
                                )
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+from PySide6.QtSql import QSqlDatabase, QSqlQuery
 
-from functools import partial
+import pandas as pd
+import re
 
 from M_Fonts import MyFont
-
-
-import M_OperateDatabases
-import pandas as pd
-
-import sys
-import re
 
 class IndicatorsSelection(QMainWindow):
     

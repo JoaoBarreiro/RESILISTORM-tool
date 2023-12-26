@@ -1,20 +1,14 @@
-from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
-                               QScrollArea, QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup,
-                               QTableView)
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QVBoxLayout,  QWidget,  QSpacerItem, QSizePolicy,  QLabel, 
+                               QFrame, QLabel, QTableView)
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+from PySide6.QtSql import QSqlDatabase, QSqlTableModel
 
-import M_OperateDatabases
-
+from M_OperateDatabases import fetch_table_from_database
 from M_IndicatorsSelection import flatten_dict
-
 from M_Fonts import MyFont
 
-from matplotlib import pyplot as plt
 from typing import Optional
 import pandas as pd
-import numpy as np
 import re
 
 """
@@ -423,7 +417,7 @@ class All_Indicators(dict):
         return selected_indicators
     
     def update_selected_units(self, answers_db):
-        indicator_settings = M_OperateDatabases.fetch_table_from_database(answers_db, "IndicatorsSetup")
+        indicator_settings = fetch_table_from_database(answers_db, "IndicatorsSetup")
         indicator_settings.set_index('IndicatorID', inplace=True)
         
         for indicator_id, indicator in indicator_settings.iterrows():

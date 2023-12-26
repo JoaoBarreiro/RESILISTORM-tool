@@ -1,18 +1,12 @@
-from PySide6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QInputDialog, QSpacerItem, QSizePolicy, QDialog, QLabel, 
-                               QMessageBox, QFrame, QFormLayout, QLineEdit, QCheckBox, QRadioButton, QLabel, QButtonGroup, QComboBox, QTableView, QMenu,
-                               QStyledItemDelegate, QHeaderView, QDoubleSpinBox, QGroupBox, QScrollArea, QTabWidget
+from PySide6.QtWidgets import ( QHBoxLayout, QVBoxLayout, QWidget,  QSpacerItem, QSizePolicy, QLabel, 
+                               QMessageBox, QLabel, QDoubleSpinBox, QScrollArea, QTabWidget
                                )
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
-from PySide6.QtGui import QAction
-from matplotlib import layout_engine
+from PySide6.QtCore import Qt
+from PySide6.QtSql import QSqlDatabase, QSqlQuery
 
-from M_IndicatorsSelection import (IndicatorsSelection, flatten_dict)
 from M_OperateDatabases import fetch_table_from_database
 from M_Operate_GUI_Elements import ExpandableSimpleElement, NotExpandableSimpleElement
-
-from W_WeightSetup import Ui_WeightWindow
 from M_Fonts import MyFont
 
 class WeightSetup(QWidget):

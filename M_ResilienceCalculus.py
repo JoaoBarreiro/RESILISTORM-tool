@@ -2,13 +2,11 @@ import numpy as np
 import pandas as pd
 import re
 
-from PySide6.QtWidgets import QMessageBox
-from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
+from PySide6.QtSql import QSqlDatabase, QSqlQuery
 
 from M_HazardClasses import ClassHazard, BuildingHazard
-from M_SituationManager import Situation
 from M_OperateDatabases import fetch_table_from_database
-
+from C_SITUATION import SITUATION
 
 def Caculate_OverallDimensionRating(
     Weights: pd.DataFrame,
@@ -44,7 +42,7 @@ def Calculate_SystemPerformanceRating(
             AnswersDatabase = QSqlDatabase,
             IndicatorsLibrary = pd.DataFrame,
             IndicatorsSetup = pd.DataFrame,
-            Situation = Situation):
+            Situation = SITUATION):
     
     SelectedIndicators = IndicatorsSetup[IndicatorsSetup['SelectedState'] == 1]
     #SelectedIndicators.set_index("IndicatorID", inplace=True)
@@ -73,6 +71,8 @@ def Calculate_SystemPerformanceRating(
     common_indices = SPR_Answers.T.index.intersection(SelectedIndicators.index)
     
     SPR_filtered = SPR_Answers.loc[:, common_indices]
+    
+    SPR_filtered["Average"] = SPR_filtered.mean(axis=1)
    
     return SPR_filtered
 
@@ -81,7 +81,7 @@ def Caculate_ConsequencesRating(
     AnswersDatabase: QSqlDatabase,
     IndicatorsLibrary: pd.DataFrame,
     IndicatorsSetup: pd.DataFrame,
-    Situation = Situation):
+    Situation = SITUATION):
 
     SelectedIndicators = IndicatorsSetup[IndicatorsSetup['SelectedState'] == 1]
     
@@ -136,6 +136,8 @@ def Caculate_ConsequencesRating(
     common_indices = SCR_Answers.T.index.intersection(SelectedIndicators.index)
     
     SCR_filtered = SCR_Answers.loc[:, common_indices]
+    
+    SCR_filtered["Average"] = SCR_filtered.mean(axis=1)
 
     return SCR_filtered
 
@@ -168,7 +170,11 @@ def Caculate_ConsequencesRating(
         return PerformanceConsequenceRating.T
     """
 
-def Calculate_FunctionalRating(Weights: pd.DataFrame, Metrics: pd.DataFrame, MetricsOptions: pd.DataFrame, MetricsAnswers:pd.DataFrame):
+def Calculate_FunctionalRating(Weights: pd.DataFrame,
+                               Metrics: pd.DataFrame,
+                               MetricsOptions: pd.DataFrame,
+                               MetricsAnswers:pd.DataFrame
+                               ):
 
     def singlechoicescore(AnswerIndex = int, OptionsNumber = int):
 
@@ -302,9 +308,10 @@ def Calculate_FunctionalRating(Weights: pd.DataFrame, Metrics: pd.DataFrame, Met
 
     return DimensionRating, ObjectivesRating, CriteriaRating
 
-def Calculate_Completness(Functional_Answers):
+def Calculate_Completeness(Functional_Answers: pd.DataFrame):
 
-    MetricAnswerStatus = pd.DataFrame(index = Functional_Answers.index, columns=['AnswerStatus', 'Dimension', 'Objective', 'ObjectiveID'])
+    MetricAnswerStatus = pd.DataFrame(index = Functional_Answers.index,
+                                      columns=['AnswerStatus', 'Dimension', 'Objective', 'ObjectiveID'])
 
     for metricID, metric in Functional_Answers.iterrows():
         dimension = metricID.split('.')[0]

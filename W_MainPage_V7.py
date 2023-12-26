@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'MainPage_V7bnNKcF.ui'
+## Form generated from reading UI file 'MainPage_V7DRkVHD.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -2107,7 +2107,7 @@ class Ui_MainWindow(object):
         self.Dashboard_scrollArea.setAlignment(Qt.AlignCenter)
         self.Dashboard_WidgetContents = QWidget()
         self.Dashboard_WidgetContents.setObjectName(u"Dashboard_WidgetContents")
-        self.Dashboard_WidgetContents.setGeometry(QRect(0, -338, 918, 920))
+        self.Dashboard_WidgetContents.setGeometry(QRect(0, 0, 918, 920))
         self.verticalLayout_44 = QVBoxLayout(self.Dashboard_WidgetContents)
         self.verticalLayout_44.setSpacing(10)
         self.verticalLayout_44.setObjectName(u"verticalLayout_44")
@@ -2458,7 +2458,7 @@ class Ui_MainWindow(object):
         self.BodyWidget.setCurrentIndex(5)
         self.Manager_TabWidget.setCurrentIndex(0)
         self.Functional_MainWidget.setCurrentIndex(0)
-        self.Performance_MainWidget.setCurrentIndex(0)
+        self.Performance_MainWidget.setCurrentIndex(1)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -2496,7 +2496,7 @@ class Ui_MainWindow(object):
         self.analysis_btn_2.setText(QCoreApplication.translate("MainWindow", u"ANALYSIS MANAGER", None))
         self.Situation_selection_Label.setText(QCoreApplication.translate("MainWindow", u"Select situation:", None))
         self.Situation_selection_Combobox.setPlaceholderText(QCoreApplication.translate("MainWindow", u"None", None))
-        self.functional_btn_2.setText(QCoreApplication.translate("MainWindow", u"FUNCTIONAL DIMENSION", None))
+        self.functional_btn_2.setText(QCoreApplication.translate("MainWindow", u"STRATEGIC DIMENSION", None))
         self.performance_btn_2.setText(QCoreApplication.translate("MainWindow", u"PERFORMANCE DIMENSION", None))
         self.dashboard_btn_2.setText(QCoreApplication.translate("MainWindow", u"RESILIENCE DASHBOARD", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-size:14pt; font-weight:700;\">HOME</span></p></body></html>", None))
@@ -2598,7 +2598,7 @@ class Ui_MainWindow(object):
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt; font-weight:700;\">RESILIENCE RATING</span></p></body></html>", None))
         self.OFR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">FUNCTIONAL RATING</span></p></body></html>", None))
         self.OPR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">PERFORMANCE RATING</span></p></body></html>", None))
-        self.ORR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">OVERALL RATING</span></p></body></html>", None))
+        self.ORR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">URBAN STORMWATER RESILIENCE INDEX</span></p></body></html>", None))
         self.Overall_Label_3.setText(QCoreApplication.translate("MainWindow", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"
 "p, li { white-space: pre-wrap; }\n"
@@ -2606,7 +2606,7 @@ class Ui_MainWindow(object):
 "li.unchecked::marker { content: \"\\2610\"; }\n"
 "li.checked::marker { content: \"\\2612\"; }\n"
 "</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt; font-weight:700; color:#b0bea5;\">FUNCTIONAL DIMENSION</span></p></body></html>", None))
+"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt; font-weight:700; color:#b0bea5;\">STRATEGIC DIMENSION</span></p></body></html>", None))
         self.label_13.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-weight:700;\">CRITERIA RATING</span></p></body></html>", None))
         self.FCR_ComboBox.setCurrentText("")
         self.FCR_ComboBox.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Select objective...", None))
