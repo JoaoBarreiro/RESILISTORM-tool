@@ -1,87 +1,35 @@
-from ast import Set
-from operator import index
 import sys
 import os
 import shutil
-import re
-from click import Option
+import atexit
 import pandas as pd
-from PySide6.QtWidgets import (QMainWindow, QApplication, QPushButton, QTreeWidget, QTreeWidgetItem,
+
+from PySide6.QtWidgets import (QMainWindow, QApplication, QTreeWidget, QTreeWidgetItem,
                             QVBoxLayout, QButtonGroup, QRadioButton, QWidget,
-                            QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit, QComboBox,
-                            QScrollArea, QSizePolicy, QSpacerItem, QFileDialog, QTableView, QDialogButtonBox,
-                            QMessageBox, QDialog, QStyledItemDelegate, QHeaderView, QMenu, QAbstractItemView, QGroupBox,
-                            QAbstractScrollArea, QStyleOptionButton, QStyle, QTableWidgetItem, QFrame, QHBoxLayout, QLayout)
-from PySide6.QtCore import Qt, Signal, QEvent, QAbstractTableModel, QModelIndex, QCoreApplication
+                            QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit,
+                            QScrollArea, QSizePolicy, QSpacerItem,  QTableView, 
+                             QDialog, QStyledItemDelegate, QHeaderView,  QAbstractItemView,
+                            QAbstractScrollArea,   QFrame 
+                            )
+from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QCoreApplication
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
-from PySide6.QtGui import QStandardItemModel, QValidator, QIntValidator, QAction
+from PySide6.QtGui import QValidator
 
 from W_MainPage_V7 import Ui_MainWindow
-from W_SetupWindow_ui import Ui_HazardSetup
-from W_B1_Setup import Ui_SettingB1
-
 
 from M_WelcomeDialog import WelcomeDialog
+
+from C_STUDY import STUDY
+
 import M_OperateDatabases
 import M_Operate_GUI_Elements
 import M_PlotGraphs
-import M_ResilienceCalculus
-import M_IndicatorsSelection
+
 import M_SituationManager
 import M_WeightSetup
 import M_PerformanceSetup
 
 from M_Fonts import MyFont
-
-from functools import partial
-
-import atexit
-
-class HazardSetupDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super(HazardSetupDelegate, self).__init__(parent)
-
-    def createEditor(self, parent, option, index):
-
-        # #set the spacial case for the "Buildings Damage (B1)" hazard
-        # if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
-        #     # Use the custom button-like delegate for column 1 when the text in column 0 is "Buildings Damage (B1)"
-        #     editor = QPushButton("Setup", parent)
-        #     editor.clicked.connect(self.openB1SetupWindow)  # Connect the button click to a custom slot
-        #     return editor
-
-        # Create a QComboBox editor for column 0 and 1 and its options
-        if index.column() in (0,1):
-            editor = QComboBox(parent)
-            if index.column() == 0:
-                editor.addItems(M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "HazardLibrary")["ShowName"])
-            elif index.column() == 1:
-                editor.addItems(["%", "Area"])
-            return editor
-
-        # Default case: Use the base editor for other columns (regular text cell)
-        return super().createEditor(parent, option, index)
-
-    def setEditorData(self, editor, index):
-        # Set the current value of the editor based on the model's data
-        value = index.model().data(index, Qt.EditRole)
-        if isinstance(editor, QComboBox):
-            editor.setCurrentText(value)
-        # No need to handle QPushButton here since we don't use currentText()
-
-    def setModelData(self, editor, model, index):
-        if isinstance(editor, QComboBox):
-            # Update the model's data when the editor value changes for QComboBoxes
-            model.setData(index, editor.currentText(), Qt.EditRole)
-
-    def editorEvent(self, event, model, option, index):
-        # Override editorEvent to handle custom button click event
-        if event.type() == QEvent.MouseButtonRelease and index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
-            # Custom button was clicked, update the model with "Custom" value
-            model.setData(index, "Custom", Qt.EditRole)
-            return True  # Return True to indicate that the event has been handled
-
-        return super().editorEvent(event, model, option, index)
 
 class GeneralizedIndicatorModel(QAbstractTableModel):
     def __init__(self, database, indicators, rain_id, column_names, row_names=None):
@@ -157,7 +105,6 @@ class GeneralizedIndicatorModel(QAbstractTableModel):
             self.database.transaction()
 
             query = QSqlQuery(self.database)
-            # query.prepare(f"UPDATE {table_name} SET '{column_name}' = {float(value)} WHERE RainfallID = {self.rain_id}")
             if not query.exec(f"UPDATE {table_name} SET '{column_name}' = {float(value)} WHERE RainfallID = {self.rain_id}"):
                 print("Query execution failed in setData:", query.lastError().text())
                 # Handle update failure
@@ -222,37 +169,6 @@ class GeneralizedIndicatorModel(QAbstractTableModel):
                     self.database.rollback()
                     raise
 
-# Custom Delegate for Button-like Appearance
-class ButtonLikeDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super(ButtonLikeDelegate, self).__init__(parent)
-
-    def paint(self, painter, option, index):
-        # Check if the conditions are met to draw the cell as a button
-        if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
-            # Draw the cell as a button
-            button_option = QStyleOptionButton()
-            button_option.rect = option.rect
-            button_option.state = option.state
-            button_option.palette = option.palette
-            button_option.text = index.data(Qt.DisplayRole)
-            QApplication.style().drawControl(QStyle.CE_PushButton, button_option, painter)
-        else:
-            # Draw the cell as regular text cell
-            super().paint(painter, option, index)
-
-class IntRangeDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.validator = QIntValidator(1, 10, self)
-
-    def createEditor(self, parent, option, index):
-        editor = super().createEditor(parent, option, index)
-        if index.column() == 1:
-            editor.setValidator(self.validator)
-        return editor
-
 class DecimalZeroOneDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = QLineEdit(parent)
@@ -292,17 +208,6 @@ class FloatValidator(QValidator):
     #             flags &= ~Qt.ItemFlag.ItemIsEditable
     #         return flags
 
-class CustomSqlTableModel(QSqlTableModel):
-    def __init__(self, column_names, parent=None):
-        super().__init__(parent)
-        self.column_names = column_names
-
-    def headerData(self, section, orientation, role):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            if section < len(self.column_names):
-                return self.column_names[section]
-        return QSqlTableModel.headerData(self, section, orientation, role)
-
 class PerformanceSqlTableModel(QSqlTableModel):
     def __init__(self, db=None, non_editable_columns=None):
         if db is not None:
@@ -317,170 +222,30 @@ class PerformanceSqlTableModel(QSqlTableModel):
             flags &= ~Qt.ItemIsEditable
         return flags
 
-class ConfirmDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Confirmation")
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-        self.setLayout(layout)
-
-        message_label = QLabel("Are you sure?")
-        layout.addWidget(message_label)
-
-        button_box = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
-        layout.addWidget(button_box)
-
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-
-class SetupWindow(QMainWindow):
-
-    windowClosed = Signal(str)
-
-    def __init__(self, SetupTable):
-        super().__init__()
-        self.ui = Ui_HazardSetup()
-        self.ui.setupUi(self)
-
-        #Set the headers
-        if SetupTable == "HazardSetup":
-            Label = "HAZARD SETUP"
-            self.setWindowTitle("Hazard Setup Window")
-        elif SetupTable == "ScenarioSetup":
-            Label = "SCENARIO SETUP"
-            self.setWindowTitle("Scenario Setup Window")
-
-        self.SetupOption = SetupTable
-
-        self.ui.SetupLabel.setText(Label)
-        self.ui.SetupLabel.setFont(MyFont(12, True))
-
-        self.populate_table(SetupTable)
-
-        #Customize the TableView
-        self.ui.SetupTableView.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
-        self.ui.SetupTableView.verticalHeader().setDefaultAlignment(Qt.AlignLeft)
-        self.ui.SetupTableView.resizeRowsToContents()
-
-        #Set actions for buttons
-        self.ui.Add_BT.clicked.connect(self.add_row)
-        self.ui.Del_BT.clicked.connect(self.delete_row)
-        self.ui.Close_BT.clicked.connect(self.closeSetupWindow)
-
-    def populate_table(self, SetupCase):
-        # Ensure that the database connection is open before creating the model
-        if not ANSWERS_DB.isOpen():
-            QMessageBox.critical(self, "Database Error", "ANSWERS_DB is not open.")
-            return
-
-        # Create a QSqlTableModel
-        self.model = QSqlTableModel(db=ANSWERS_DB)
-        self.model.setTable(SetupCase)
-        self.model.setEditStrategy(QSqlTableModel.EditStrategy.OnFieldChange)
-
-        # Fetch the data from the table
-        if not self.model.select():
-            QMessageBox.critical(self, "Database Error", "Failed to fetch data from the table.")
-            return
-
-        # Set the headers
-        if SetupCase == "HazardSetup":
-            headers = ["Hazard Name", "Unit of hazard classification", "Comment"]
-
-            hazard_delegate = HazardSetupDelegate()
-
-            self.ui.SetupTableView.setItemDelegate(hazard_delegate)
-
-        elif SetupCase == "ScenarioSetup":
-            headers = ["Scenario Name", "System config.", "Rainfall", "Outfall Cond.", "Comment"]
-
-        for i, header in enumerate(headers):
-            self.model.setHeaderData(i, Qt.Horizontal, header)
-
-        self.ui.SetupTableView.setModel(self.model)
-        self.ui.SetupTableView.resizeColumnsToContents()
-        self.ui.SetupTableView.setEditTriggers(QTableView.AllEditTriggers)
-
-    def add_row(self):
-        # Get the number of rows in the model
-        num_rows = self.model.rowCount()
-
-        # Insert a new record at the end of the model
-        record = self.model.record()
-        if self.SetupOption == "HazardSetup":
-            record.setValue("HazardName", "SelectHazard")
-        elif self.SetupOption == "ScenarioSetup":
-            record.setValue("ScenarioName", "NewScenario")
-
-        self.model.insertRecord(num_rows, record)
-
-        # # Manually update the view to reflect the changes
-        # self.model.select()
-
-        # Optional: Scroll to the newly added row
-        self.ui.SetupTableView.scrollToBottom()
-
-        # Reset the view to reflect the changes
-        self.ui.SetupTableView.reset()
-
-    def delete_row(self):
-        # Get the selected row indatabasedices
-        selection_model = self.ui.SetupTableView.selectionModel()
-        selected_rows = selection_model.selectedRows()
-
-        # Confirm deletion with the user
-        if self.SetupOption == "HazardSetup":
-            message = "Are you sure you want to delete the selected hazard?"
-        elif self.SetupOption == "ScenarioSetup":
-            message = "Are you sure you want to delete the selected scenario?"
-
-        reply = QMessageBox.question(self, "Delete Row", f"{message}", QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.No:
-            return
-
-        # Remove the rows from the model
-        else:
-            for index in selected_rows:
-                self.model.removeRow(index.row())
-
-        # Submit changes to the database
-        if not self.model.submitAll():
-            QMessageBox.critical(self, "Error", "Failed to delete row(s) from the database.")
-
-        # Manually update the view to reflect the changes
-        self.model.select()
-
-    def closeSetupWindow(self):
-        if self.SetupOption == "HazardSetup":
-            # Check if the mandatory column has been filled
-            mandatory_column_index = 1  # Number of hazard classes
-
-            for row in range(self.model.rowCount()):
-                value = self.model.index(row, mandatory_column_index).data()
-                if not value:
-                    QMessageBox.critical(self, "Error", "Must select a Hazard Unit!")
-                    return
-
-        confirm_dialog = QMessageBox.question(self, "Confirmation", "Do you want to close the window?", QMessageBox.Yes | QMessageBox.No)
-        if confirm_dialog == QMessageBox.Yes:
-            self.windowClosed.emit(self.SetupOption)
-            self.model.select()
-            self.close()
-
-    def savechanges(self):
-        #self.model.submitAll()
-        #self.closeSetupWindow()
-        pass
-
 class MainWindow(QMainWindow):
-    def __init__(self, WelcomeDialog: WelcomeDialog):
+    
+    updateWeights = Signal()
+    updateStudy = Signal()
+    
+    def __init__(self, STUDY: STUDY):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowTitle("RESILISTROM tool - V0")
 
+        self.STUDY = STUDY
+
+        self.set_inital_view()
+        self.set_menu_buttons_behaviour()
+        self.set_functional_treewidget()
+        self.set_functional_mainwidget()
+        self.set_analysis_manager()
+        self.set_performance_rainfall_combobox()
+        self.set_dashboard_functionalcriteria_combobox()
+        
+        self.initialize_performance_variables()
+     
+    def set_inital_view(self):  
         # Set initial view of the window
         self.ui.LeftMenuFrame.setHidden(True)
         self.ui.menu_btn.setChecked(True)
@@ -488,7 +253,10 @@ class MainWindow(QMainWindow):
         self.ui.home_btn_2.setChecked(True)
         self.BodyWidget_index = 0
         self.ui.BodyWidget.setCurrentIndex(self.BodyWidget_index)
-
+        # RECEIVE SIGNAL WHEN CHANGING BODY WIDGET, namely ANALYSIS MANAGER
+        self.ui.BodyWidget.currentChanged.connect(self.update_study)
+    
+    def set_menu_buttons_behaviour(self):
         # Set associated function to left menu buttons
         self.ui.home_btn.clicked.connect(self.home_btn_toggled)
         self.ui.home_btn_2.clicked.connect(self.home_btn_toggled)
@@ -505,32 +273,10 @@ class MainWindow(QMainWindow):
         self.ui.performance_btn.clicked.connect(self.performance_btn_toggled)
         self.ui.performance_btn_2.clicked.connect(self.performance_btn_toggled)
 
-        self.ui.dashboard_btn.clicked.connect(self.dashboard_btn_toggled)
+        self.ui.dashboard_btn.clicked.connect(self.dashboard_btn_toggled) 
         self.ui.dashboard_btn_2.clicked.connect(self.dashboard_btn_toggled)
-        
-        '''
-        INITIALIZE STUDY
-        '''
-        self.Study = Study(WelcomeDialog, STUDY_DB, RESILISTORM_DB)      
-        
-        self.ui.BodyWidget.currentChanged.connect(self.update_study)
-                
-        """
-        GET METHODOLOGY METRICS
-        """
-        
-        refuss_contents = M_OperateDatabases.getREFUSSDatabase(RESILISTORM_DB)
-        self.dimensions = refuss_contents[0]
-        self.objectives = refuss_contents[1].set_index("ObjectiveID")
-        self.criteria = refuss_contents[2].set_index("CriteriaID")
-        self.metrics = refuss_contents[3].set_index("MetricID")
-        self.metric_options = refuss_contents[4].set_index("MetricID")
-        self.indicators = {'indicators_classes': refuss_contents[5].set_index("IndicatorClassID"),
-                           'indicators_library': refuss_contents[6].set_index("IndicatorID")}
-        
-        #add short and full labels to dataframes
-        self.add_labels_to_dataframes()
 
+    def set_functional_treewidget(self):
         """
         SET FUNCTIONAL TREE WIDGET
         """
@@ -548,6 +294,7 @@ class MainWindow(QMainWindow):
         # Connect the signals from the TreeWidgets to navigate through the pages
         self.ui.Functional_list.itemClicked.connect(self.navigate_to_page)
 
+    def set_functional_mainwidget(self):
         """
         SET MAIN FUNCTIONAL WIDGET
         """
@@ -559,46 +306,44 @@ class MainWindow(QMainWindow):
 
         self.FunctionalMetricBlocks = {}
         self.populate_Functional_criterion_pages()
-        
+
+    def set_analysis_manager(self):
         """
         SET ANALYSIS MANAGER
         """
         
         # SET SITUATION MANAGER
         self.SituationSetup = M_SituationManager.ListEditor(self.ui.Situation_setup_Content_WidgetLayout,
-                                                           STUDY_DB)
+                                                           self.STUDY.Study_db)
         self.SituationGenerator = M_SituationManager.SituationGenerator(self.ui.Situation_generator_Content_WidgetLayout,
                                                                        self.SituationSetup,
-                                                                       STUDY_DB,
-                                                                       self.Study.Directory,
-                                                                       RESILISTORM_DB)
-
-        self.SituationGenerator.situationsModified.connect(self.update_situations)  #when situations are changed, self.Study.Situations are updated due to signal emission
+                                                                       self.STUDY.Study_db)
+        
+        #update_situation_comboboxb based on the changes in the SituationGenerator
+        self.SituationGenerator.situationModified.connect(self.update_modified_situation)  
    
-        self.update_situation_combobox()
-        self.ui.Situation_selection_Combobox.currentTextChanged.connect(self.update_current_situation)
+        self.update_situation_combobox_list()
+        self.ui.Situation_selection_Combobox.currentTextChanged.connect(self.set_selected_situation)
 
         # SET WEIGHT SETUP
-        self.WeightsSetup = M_WeightSetup.WeightSetup(STUDY_DB)
+        self.WeightsSetup = M_WeightSetup.WeightSetup(self.STUDY.Study_db)
         self.ui.Manager_Page2_Layout.addWidget(self.WeightsSetup)
         
         self.manager_tab = self.ui.Manager_TabWidget.currentWidget()
         self.ui.Manager_TabWidget.currentChanged.connect(self.weight_setup_verifier)
         
         # SET PERFORMANCE SETUP
-        self.get_indicators_libraries()
-        self.update_indicators_setup()
+        self.get_study_IndicatorsSetup()
 
-        self.Indicators_selector_Widget = M_PerformanceSetup.IndicatorsSelection(self.IndicatorsClassesLibrary,
-                                                                                    self.IndicatorsLibrary,
-                                                                                    self.IndicatorsSetup,
-                                                                                    STUDY_DB)
+        self.Indicators_selector_Widget = M_PerformanceSetup.IndicatorsSelection(self.STUDY.IndicatorsClassesLibrary,
+                                                                                 self.STUDY.IndicatorsLibrary,
+                                                                                 self.STUDY.IndicatorsSetup,
+                                                                                 self.STUDY.Study_db)
+
         self.ui.Indicators_selector_FrameLayout.addWidget(self.Indicators_selector_Widget)
 
-        self.Indicators_properties_Widget = M_PerformanceSetup.PerformanceSetup(self.IndicatorsClassesLibrary,
-                                                                                self.IndicatorsLibrary,
-                                                                                self.IndicatorsSetup,
-                                                                                STUDY_DB,
+        self.Indicators_properties_Widget = M_PerformanceSetup.PerformanceSetup(self.STUDY.Methodology_db,
+                                                                                self.STUDY.Study_db,
                                                                                 self.Indicators_selector_Widget)
 
         self.ui.Indicators_setup_FrameLayout.addWidget(self.Indicators_properties_Widget)
@@ -607,9 +352,9 @@ class MainWindow(QMainWindow):
 
 
         # Initialize current situation as empty situation
-        self.update_current_situation() # to get the initial situation selected in the combobox, i.e., None -> can only be called after setting the functional widget
+        self.set_selected_situation() # to get the initial situation selected in the combobox, i.e., None -> can only be called after setting the functional widget
      
-        
+    def initialize_performance_variables(self):
         """
         INITIALIZE PERFORMANCE RELATED VARIABLES        
         """
@@ -624,10 +369,6 @@ class MainWindow(QMainWindow):
             # and as values the selected IndicatorsIDs of each class (generaly, classes only allow 1 indicator)
             # Updated when the IndicatorSelection window is closed
         self.selected_indicators = self.Indicators_selector_Widget.selected_indicators
-
-        # Initialize list to save the existing scanerio IDs
-            # Updated when the SETUP window is closed
-        # self.existing_scenarios = self.ScenarioSetup.index.tolist()
 
         # Initialize dictionary containg as keys the scenarioIDs
             # and as values a dict containing the IndicatorIDs as keys and
@@ -644,12 +385,15 @@ class MainWindow(QMainWindow):
             # by showing/hiding the widgets of the selected/deselected indicators
         self.scenario_pages = {}
 
-        """
-        SET RAINFALL COMBOBOX
-        """
-
+    def set_performance_rainfall_combobox(self):
         # Populate the Performance_MainWidget with rainfall-RP from ANSWERS_DB
         self.ui.Rainfall_selection_ComboBox.currentTextChanged.connect(self.update_performance_page)
+
+    def set_dashboard_functionalcriteria_combobox(self):
+        #Set the Objectives list into the Functional Criteira Rating Combobox
+        functional_objectives = self.STUDY.objectives[self.STUDY.objectives["DimensionID"]==1]
+        ObjectivesID_List = ("S" + functional_objectives["ObjectiveSubID"].astype(str) + " - " + functional_objectives["ObjectiveName"]).tolist()
+        M_Operate_GUI_Elements.updateQComboBox(self.ui.FCR_ComboBox, ObjectivesID_List)
         
         #Update Functional Criteria Rating plot when FCR_ComboBox changes
         self.ui.FCR_ComboBox.currentTextChanged.connect(self.updateFCR)        
@@ -666,17 +410,13 @@ class MainWindow(QMainWindow):
                 self.ui.Manager_TabWidget.currentChanged.connect(self.weight_setup_verifier)
                 return False
             else:
-                self.Study.update_weights_from_database()
+                self.STUDY.update_weights_from_database()
         else:
             self.manager_tab = self.ui.Manager_TabWidget.currentIndex()
-            
-
-        # self.update_indicators_setup()
 
     def update_study(self):
-        self.Study.update_situations_from_database()
-        self.Study.update_indicators_from_database()   
-                    
+        self.STUDY.update_situations_from_database()
+        self.STUDY.update_indicators_from_database()
         if self.BodyWidget_previous_index == 2:  #if from Analysis Manager
             check_weights = self.WeightsSetup.on_tab_changed()
             if check_weights == False:
@@ -691,9 +431,9 @@ class MainWindow(QMainWindow):
                 self.ui.BodyWidget.currentChanged.connect(self.update_study)
                 self.ui.Manager_TabWidget.currentChanged.connect(self.weight_setup_verifier)
             else:
-                self.Study.update_weights_from_database()
+                self.STUDY.update_weights_from_database()
         else:
-            self.Study.update_weights_from_database()         
+            self.STUDY.update_weights_from_database()   
 
     """    # def load_existing_situations(self):
     #     existing_situations = {}
@@ -706,84 +446,19 @@ class MainWindow(QMainWindow):
     #     return existing_situations"""
 
     def update_buidling_uses(self, old_value, new_value):
-        for situation_id, situation in self.Study.Situations.items():
-            Situation_DatabasePath = os.path.join(self.Study.Directory, f"{situation.id}-SITUATION.db")
-            M_OperateDatabases.establishDatabaseConnections([(temp_DB, Situation_DatabasePath)])
+        for _, situation in self.STUDY.Situations.items():
+            M_OperateDatabases.establishDatabaseConnections([(self.STUDY.Temp_db, situation.db_path)])
             
-            M_OperateDatabases.updateB1TableUses(temp_DB, STUDY_DB, situation, old_value, new_value)
+            M_OperateDatabases.updateB1TableUses(self.STUDY.Temp_db,
+                                                 self.STUDY.Study_db,
+                                                 situation,
+                                                 old_value,
+                                                 new_value)
            
-            temp_DB.close()
-
-    def update_situation_database_rainfalls(self, situation_id):
-        situation = self.Study.Situations[situation_id]
-        new_rows = set(situation.rainfall)
+            self.STUDY.Temp_db.close()
         
-        Situation_DatabasePath = os.path.join(self.Study.Directory, f"{situation_id}-SITUATION.db")
-        M_OperateDatabases.establishDatabaseConnections([(temp_DB, Situation_DatabasePath)])
-        
-        tables = []
-        query = QSqlQuery(temp_DB)
-        query.exec('SELECT name FROM sqlite_master WHERE type="table"')
-        while query.next():
-            table_name = query.value(0)
-            tables.append(table_name)
-         
-        for table in tables:
-            if table == "B1":
-
-                existing_rows = set()
-                query.exec(f"SELECT DISTINCT RainfallID FROM B1")
-                while query.next():
-                    existing_rows.add(int(query.value(0)))
-                    
-                unchanged_rows= existing_rows.intersection(new_rows)
-                    
-                rows_to_delete = existing_rows - unchanged_rows
-                for rain_id in rows_to_delete:
-                    query.exec(f'DELETE FROM {table} WHERE RainfallID = {rain_id}')
-
-                rows_to_add = new_rows - unchanged_rows
-                
-                custom_building_uses = set()
-                query_study = QSqlQuery(STUDY_DB)
-                query_study.exec('SELECT DISTINCT CustomUse FROM B1UsesSetup')
-                while query_study.next():
-                    custom_building_uses.add(query_study.value(0))
-
-                for use in custom_building_uses:
-                    query.exec(f"SELECT RainfallID FROM B1 WHERE BuildingUse = '{use}'")
-
-                    for rain_id in rows_to_add:
-                        query.exec(f"INSERT INTO B1 (RainfallID, BuildingUse) VALUES ({rain_id}, '{use}')")          
-
-            elif table != ("B1" and "MetricAnswers"):
-                query.exec(f"SELECT RainfallID FROM {table}")
-                existing_rows = set()
-                while query.next():
-                    existing_rows.add(int(query.value(0)))
-                    
-                unchanged_rows= existing_rows.intersection(new_rows)
-                
-                rows_to_delete = existing_rows - unchanged_rows
-                for rain_id in rows_to_delete:
-                    query.exec(f'DELETE FROM {table} WHERE RainfallID = {rain_id}')
-                
-                rows_to_add = new_rows - unchanged_rows
-                for rain_id in rows_to_add:
-                    query.exec(f'INSERT INTO {table} (RainfallID) VALUES ({rain_id})')
-                    
-        temp_DB.close()
-
-    def get_indicators_libraries(self):
-        self.IndicatorsLibrary = M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "IndicatorsLibrary")
-        self.IndicatorsLibrary.set_index("IndicatorID", inplace=True)
-
-        self.IndicatorsClassesLibrary = M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "IndicatorsClassesLibrary")
-        self.IndicatorsClassesLibrary.set_index("IndicatorClassID", inplace=True)
-        
-    def update_indicators_setup(self):
-        self.IndicatorsSetup = M_OperateDatabases.fetch_table_from_database(STUDY_DB, "IndicatorsSetup")
-        self.IndicatorsSetup.set_index("IndicatorID", inplace=True)
+    def get_study_IndicatorsSetup(self):
+        self.STUDY.update_indicators_setup()
 
     def populate_Functional_objective_pages(self):
         """
@@ -792,7 +467,7 @@ class MainWindow(QMainWindow):
         """
 
         # Iterate over objectives
-        for objective_id, objective in self.objectives.iterrows():
+        for objective_id, objective in self.STUDY.objectives.iterrows():
             objective_name = objective["ObjectiveName"]
             objective_description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."  # Replace with actual description
 
@@ -830,15 +505,15 @@ class MainWindow(QMainWindow):
         Populates the UI with criterion pages based on the criteria, metrics, and metric options retrieved from the RESILISTORM_DB.
 
         """
-        criteria_sorted = self.criteria.sort_values(by = "CriteriaID", ascending = True)
+        criteria_sorted = self.STUDY.criteria.sort_values(by = "CriteriaID", ascending = True)
 
         for criteriaID, criterion in criteria_sorted.iterrows():
             criterion_name = criterion["CriteriaName"]
-            criterion_metrics = self.metrics[self.metrics['CriteriaID'] == criteriaID]
+            criterion_metrics = self.STUDY.metrics[self.STUDY.metrics['CriteriaID'] == criteriaID]
 
             #Get the dimension based on the first character of the criterion_id
             if criteriaID.startswith('1'):
-                Dimension = "F"
+                Dimension = "S"
 
                 #Generate the criterion label and assign the font and properties of the label
                 Criterion_id_label = f"{Dimension}{criteriaID[2:]}"
@@ -879,7 +554,7 @@ class MainWindow(QMainWindow):
 
                     #add metric block to respective layout
                     if metric_id[0] == '1':
-                        metric_block = FunctionalMetricWidget(metric_id, self.metrics, self.metric_options)
+                        metric_block = FunctionalMetricWidget(metric_id, self.STUDY.metrics, self.STUDY.metric_options)
                         self.FunctionalMetricBlocks[metric_id] = metric_block
                     # elif metric_id[0] == '2':
                     #     metric_block, model, table_view = PerformanceMetricBlock(metric_id, metric_name, metric_question)
@@ -905,8 +580,8 @@ class MainWindow(QMainWindow):
        
         M_Operate_GUI_Elements.CleanStackedWidget(self.ui.Performance_MainWidget)       #LIMPAR PAGES EXISTENTES
 
-        if self.current_situation.rainfall:
-            for rainfall_year in self.current_situation.rainfall:
+        if self.selected_situation_id and self.STUDY.Situations[self.selected_situation_id].rainfall:
+            for rainfall_year in self.STUDY.Situations[self.selected_situation_id].rainfall:
                 self.scenario_models[rainfall_year] = {}
 
                 # Create the main widget
@@ -941,8 +616,8 @@ class MainWindow(QMainWindow):
                 page_layout.addWidget(top_label)
                 page_layout.addWidget(scroll_area)
 
-                for class_id, class_prop in self.IndicatorsClassesLibrary.iterrows():
-                    if class_id in self.Study.Selected_indicators["IndicatorClass"].values:
+                for class_id, class_prop in self.STUDY.IndicatorsClassesLibrary.iterrows():
+                    if class_id in self.STUDY.Selected_indicators["IndicatorClass"].values:
                         class_name = class_prop[ 'IndicatorClassName']
                         class_widget = M_Operate_GUI_Elements.NotExpandableSimpleElement(f"{class_name}")
                         class_widget.setObjectName(f"class_{class_id}")
@@ -951,12 +626,12 @@ class MainWindow(QMainWindow):
 
                         class_excluxive = class_prop['Exclusive']
                         if class_excluxive == 'NO':
-                            indicators_ids = tuple(self.Study.Selected_indicators[self.Study.Selected_indicators["IndicatorClass"] == class_id].index)
+                            indicators_ids = tuple(self.STUDY.Selected_indicators[self.STUDY.Selected_indicators["IndicatorClass"] == class_id].index)
 
-                            methodology = self.IndicatorsLibrary.at[indicators_ids[0], 'Reference']
+                            methodology = self.STUDY.IndicatorsLibrary.at[indicators_ids[0], 'Reference']
                             reference_label = QLabel(f"Methodology: {methodology}")
 
-                            selected_unit = self.IndicatorsSetup.at[indicators_ids[0], 'SelectedUnit']
+                            selected_unit = self.STUDY.IndicatorsSetup.at[indicators_ids[0], 'SelectedUnit']
                             unit_label = QLabel(f"Data unit: {selected_unit}")
 
                             scenario_model = GeneralizedIndicatorModel(ANSWERS_DB, indicators_ids, rainfall_year, ['Value'], {"SRP1": "Node surcharge",
@@ -990,9 +665,9 @@ class MainWindow(QMainWindow):
                             class_widget.content_layout.addWidget(scenarios_view)
 
                         else:
-                            for indicator_id, indicator in self.IndicatorsSetup.iterrows():
+                            for indicator_id, indicator in self.STUDY.IndicatorsSetup.iterrows():
                                 if indicator_id  in self.selected_indicators[class_id]:
-                                    methodology = self.IndicatorsLibrary.at[indicator_id, 'Reference']
+                                    methodology = self.STUDY.IndicatorsLibrary.at[indicator_id, 'Reference']
                                     reference_label = QLabel(f"Methodology: {methodology}")
                                     unit_label = QLabel(f"Data unit: {indicator['SelectedUnit']}")
 
@@ -1095,14 +770,14 @@ class MainWindow(QMainWindow):
         tree_widget.clear()
 
         # Populate the tree widget with objectives and criteria
-        for objectiveID, objective in self.objectives[self.objectives["DimensionID"] == 1].iterrows():
+        for objectiveID, objective in self.STUDY.objectives[self.STUDY.objectives["DimensionID"] == 1].iterrows():
             # Create an objective item with the objective name and description
             objective_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']} - {objective['ObjectiveName']}"])
             objective_item.setData(0, Qt.UserRole, objectiveID)  # Store the ObjectiveID as data
             objective_item.setFont(0, MyFont(9, True))
             tree_widget.addTopLevelItem(objective_item)
 
-            for criteriaID, criterion in self.criteria[self.criteria["ObjectiveID"] == objectiveID].iterrows():
+            for criteriaID, criterion in self.STUDY.criteria[self.STUDY.criteria["ObjectiveID"] == objectiveID].iterrows():
                 # Create a criterion item with the criterion name and description
                 criterion_item = QTreeWidgetItem([f"{objective['ObjectiveSubID']}.{criterion['CriteriaSubID']} - {criterion['CriteriaName']}"])
                 criterion_item.setData(0, Qt.UserRole, criteriaID)  # Store the CriterionID as data
@@ -1128,7 +803,7 @@ class MainWindow(QMainWindow):
             options_layout = M_Operate_GUI_Elements.getWidgetsFromLayout(metric_block.OptionsLayout)
             
             if state == False:   # Disable widgets/items and clean answers
-                #metric_block.metric_comment.setPlainText('')
+                metric_block.metric_comment.setText('')
                 metric_block.metric_comment.setEnabled(False)                
                 for index, item in enumerate(options_layout):
                     item.setEnabled(False)
@@ -1170,39 +845,8 @@ class MainWindow(QMainWindow):
                             item.setChecked(True)
                         else:
                             item.setChecked(False)
-                            
-    """    def save_FunctionalAnswers(self):
-
-        for metric_id, metric_block in self.FunctionalMetricBlocks.items():
-            options = M_Operate_GUI_Elements.getWidgetsFromLayout(metric_block.OptionsLayout)
-
-            comment = metric_block.metric_comment.toPlainText()
-
-            if metric_block.answer_type == "Single choice":
-                answer = ''
-                for index, radio in enumerate(options):
-                    if radio.isChecked() and answer == '':
-                        answer = [str(index), radio.text()]
-                        answer = '_'.join(answer)
-
-            elif metric_block.answer_type == "Multiple choice":
-                answers = []
-                for position, box in enumerate(options):
-                    if box.isChecked():
-                        answers.append([str(position), box.text()])
-                if answers == []:
-                    answer = ''
-                else:
-                    answer = ';'.join(['_'.join(x) for x in answers])
-
-            elif metric_block.answer_type == "Open":
-                answer = options.text()
-
-            M_OperateDatabases.save_answer_to_AnswersDatabase(ANSWERS_DB, metric_id, answer, comment)
-    """
 
     '''DEFINE FUNCTIONS FOR BUTTONS BEHAVIOR'''
-
     def home_btn_toggled(self):
         self.BodyWidget_previous_index = self.ui.BodyWidget.currentIndex()
         self.ui.BodyWidget.setCurrentIndex(0)
@@ -1224,472 +868,142 @@ class MainWindow(QMainWindow):
     def performance_btn_toggled(self):
         self.BodyWidget_previous_index = self.ui.BodyWidget.currentIndex()
         if self.ui.BodyWidget.currentIndex() != 4:
-            self.update_study()
             self.ui.BodyWidget.setCurrentIndex(4)
+            self.STUDY.update_study_from_AnalysisManager()
+            self.get_study_IndicatorsSetup()
             self.populate_Performance_pages()
 
     def dashboard_btn_toggled(self):
         self.BodyWidget_previous_index = self.ui.BodyWidget.currentIndex()
         if self.ui.BodyWidget.currentIndex() != 5:
-            self.update_study()
-            self.update_indicators_setup()
             self.ui.BodyWidget.setCurrentIndex(5)
-            self.UpdateDashboardPage()
+            self.get_study_IndicatorsSetup()
+            self.STUDY.update_study_from_AnalysisManager()
+            self.STUDY.calculate_ratings()
+            self.PlotDashboardPage()
 
-    def update_situations(self, type: str, situation_id: int):
-        self.Study.Situations = self.SituationGenerator.Situations
-         
-        # Set temporary connection to database ANSWERS_DB and apply needed changes
-        Situation_DatabasePath = os.path.join(self.Study.Directory, f"{situation_id}-SITUATION.db")      
-        M_OperateDatabases.establishDatabaseConnections([(temp_DB, Situation_DatabasePath)])
-                
-        if type == "new":
-            Situation = self.Study.Situations[situation_id]    
-            M_OperateDatabases.createSituationTables(RESILISTORM_DB, STUDY_DB, temp_DB, Situation)
-            M_OperateDatabases.fillMetricAnswersDatabase(temp_DB, self.metrics)
-            temp_DB.close()
-            print(f"File {situation_id}-SITUATION.db created.")
-            
-        elif type == "update":
-            Situation = self.Study.Situations[situation_id]    
-            new_rows = set(Situation.rainfall)
-                        
-            tables = []
-            query = QSqlQuery(temp_DB)
-            query.exec('SELECT name FROM sqlite_master WHERE type="table"')
-            while query.next():
-                table_name = query.value(0)
-                tables.append(table_name)
-            
-            for table in tables:
-                if table == "B1":
-                    existing_rows = set()
-                    query.exec(f"SELECT DISTINCT RainfallID FROM B1")
-                    while query.next():
-                        existing_rows.add(int(query.value(0)))
-                        
-                    unchanged_rows= existing_rows.intersection(new_rows)
-                        
-                    rows_to_delete = existing_rows - unchanged_rows
-                    for rain_id in rows_to_delete:
-                        query.exec(f'DELETE FROM {table} WHERE RainfallID = {rain_id}')
-
-                    rows_to_add = new_rows - unchanged_rows
-                    
-                    custom_building_uses = set()
-                    query_study = QSqlQuery(STUDY_DB)
-                    query_study.exec('SELECT DISTINCT CustomUse FROM B1UsesSetup')
-                    while query_study.next():
-                        custom_building_uses.add(query_study.value(0))
-
-                    for use in custom_building_uses:
-                        query.exec(f"SELECT RainfallID FROM B1 WHERE BuildingUse = '{use}'")
-
-                        for rain_id in rows_to_add:
-                            query.exec(f"INSERT INTO B1 (RainfallID, BuildingUse) VALUES ({rain_id}, '{use}')")          
-
-                elif table != ("B1" or "MetricAnswers"):
-                    query.exec(f"SELECT RainfallID FROM {table}")
-                    existing_rows = set()
-                    while query.next():
-                        existing_rows.add(int(query.value(0)))
-                        
-                    unchanged_rows= existing_rows.intersection(new_rows)
-                    
-                    rows_to_delete = existing_rows - unchanged_rows
-                    for rain_id in rows_to_delete:
-                        query.exec(f'DELETE FROM {table} WHERE RainfallID = {rain_id}')
-                    
-                    rows_to_add = new_rows - unchanged_rows
-                    for rain_id in rows_to_add:
-                        query.exec(f'INSERT INTO {table} VALUES ({rain_id})')
-            print(f"File {situation_id}-SITUATION.db updated.")
-            temp_DB.close()            
-            
-            self.update_situation_database_rainfalls(situation_id)
-            
-        elif type == "delete":
-            temp_DB.close()
-            if os.path.exists(Situation_DatabasePath):
-                os.remove(Situation_DatabasePath)
-                print(f"File {situation_id}-SITUATION.db deleted.")
-        
+    def update_modified_situation(self,
+                                  type: str,   #'new', 'update' or 'delete'
+                                  situation_id: int):
+        # Update STUDY Situations based on database
+        self.STUDY.update_situations_from_database()
+        #Update specific Situation
+        self.STUDY.update_situation_from_SituationGenerator(type, situation_id)
         #update self.ui.Situation_selection_Combobox items
-        self.update_situation_combobox()
+        self.update_situation_combobox_list()
 
-    def update_situation_combobox(self):
+    def update_situation_combobox_list(self):
         self.ui.Situation_selection_Combobox.clear()
         self.ui.Situation_selection_Combobox.addItem("None")
-        self.ui.Situation_selection_Combobox.addItems(self.SituationGenerator.get_situations()["SituationName"])
+        self.ui.Situation_selection_Combobox.addItems(self.SituationGenerator.get_situations_table()["SituationName"])
  
     def update_rainfall_combobox(self):
         self.ui.Rainfall_selection_ComboBox.clear()
-        if self.current_situation.rainfall:
+        if self.selected_situation_id and self.STUDY.Situations[self.selected_situation_id].rainfall:
             self.ui.Rainfall_selection_ComboBox.setEnabled(True)
-            for rain in self.current_situation.rainfall:
+            for rain in self.STUDY.Situations[self.selected_situation_id].rainfall:
                 self.ui.Rainfall_selection_ComboBox.addItem(str(rain))
             self.ui.Rainfall_selection_ComboBox.setCurrentIndex(0)
             self.ui.Performance_MainWidget.setCurrentIndex(0)
-        else:
+        elif not self.selected_situation_id:
             self.ui.Rainfall_selection_ComboBox.setEnabled(False)
 
-    def update_current_situation(self):
+    def set_selected_situation(self):
+        from C_SITUATION  import SITUATION
+        
         if self.ui.Situation_selection_Combobox.currentIndex() >= 1: #index 0 is "None"
             selected_situation_name = self.ui.Situation_selection_Combobox.currentText()
-            for situation_id, situation in self.Study.Situations.items():
+            for situation_id, situation in self.STUDY.Situations.items():
                 if situation.name == selected_situation_name:
-                    self.current_situation = situation
-            
+                    self.selected_situation_id = situation_id
+                    # self.STUDY.Selected_situation = situation
             # Establish the connection with ANSWRS_DB
-            Situation_DatabasePath = os.path.join(self.Study.Directory, f"{self.current_situation.id}-SITUATION.db")
-            M_OperateDatabases.establishDatabaseConnections([(ANSWERS_DB, Situation_DatabasePath)])
+            M_OperateDatabases.establishDatabaseConnections([(ANSWERS_DB, self.STUDY.Situations[self.selected_situation_id].db_path)])
             state = True
-
+            
         else:
             # Close the connection with current ANSWRS_DB
             if ANSWERS_DB.isOpen():
                 ANSWERS_DB.close()
-            self.current_situation = M_SituationManager.Situation()
+            self.selected_situation_id = -1
+            self.STUDY.Situations[self.selected_situation_id] = SITUATION(self.STUDY.Study_path)
             state = False
-    
+        
+        print(f"Selected situation is {self.STUDY.Situations[self.selected_situation_id].name}")
+        
         self.update_FunctionalAnswers(state)
         self.update_rainfall_combobox()
         self.populate_Performance_pages()
         
         if self.ui.BodyWidget.currentIndex() == 5:
-            self.UpdateDashboardPage()
-                    
-        print(f"Current situation is {self.current_situation.name}")
+            self.PlotDashboardPage()        
 
     def update_performance_page(self):
         current_rainfall_index = self.ui.Rainfall_selection_ComboBox.currentIndex()
         self.ui.Performance_MainWidget.setCurrentIndex(current_rainfall_index)
 
-    def UpdateDashboardPage(self):     
-        
-        '''
-        GET FUNCTIONAL ANSWERS
-        '''
-        MetricsAnswers = M_OperateDatabases.fetch_table_from_database(ANSWERS_DB, "MetricAnswers")
-        MetricsAnswers.set_index("metricID", inplace=True)
-
-        '''
-        TREAT FUNCTIONAL DIMENSION DATA
-        '''
-        # FILTER DATAFRAMES TO GET ONLY FUNCTIONAL DIMENSION
-        Functional_Objectives = self.objectives[self.objectives["DimensionID"] == 1]
-        Functional_Criteria = self.criteria[self.criteria.index.str.startswith("1.")]
-        Functional_Answers = MetricsAnswers[MetricsAnswers.index.str.startswith('1.')]
-
-        # Calculate the Functional Answered Metrics completness
-        ObjectivesCompletnessSummary = M_ResilienceCalculus.Calculate_Completness(Functional_Answers)
-
-        # Prepare ObjectivesCompletnessSummary to plot
-        ObjectivesCompletness = pd.merge(Functional_Objectives, ObjectivesCompletnessSummary, left_index = True, right_index =True , how='inner')
-        
-        # Calculate the FunctionalDimensionRating, FunctionalObjectivesRating and FunctionalCriteriaRating
-        FunctionalDimensionRating, FunctionalObjectivesRating, FunctionalCriteriaRating = M_ResilienceCalculus.Calculate_FunctionalRating(self.Study.Weights, self.metrics, self.metric_options, Functional_Answers)
-
-        '''
-        PREPARE FUNCTIONAL RESULTS TO PLOTTING
-        '''
-        FunctionalObjectivesRating = FunctionalObjectivesRating.join(Functional_Objectives[["ObjectiveName", "ShortLabel", "FullLabel"]].loc[FunctionalObjectivesRating.index], how = "right")
-
-        # Prepare FunctionalCriteraRating to plot
-        self.FunctionalCriteriaRating = FunctionalCriteriaRating.join(Functional_Criteria[["CriteriaName", "ShortLabel", "FullLabel"]].loc[FunctionalCriteriaRating.index], how = "right")
-        
-        # Set the FCR_ComboBox options
-        ObjectivesID_List = ("F" + FunctionalObjectivesRating.index.str.split(".").str[1] + " - " + FunctionalObjectivesRating["ObjectiveName"]).tolist()
-        M_Operate_GUI_Elements.updateQComboBox(self.ui.FCR_ComboBox, ObjectivesID_List)
-
-        '''
-        CALCULATE SYSTEM PERFORMANCE RATING
-        '''
-        SystemPerformanceRating = M_ResilienceCalculus.Calculate_SystemPerformanceRating(
-            AnswersDatabase = ANSWERS_DB,
-            IndicatorsLibrary = self.IndicatorsLibrary,
-            IndicatorsSetup = self.IndicatorsSetup,
-            Situation = self.current_situation)
-        
-        SystemPerformanceRating["Average"] = SystemPerformanceRating.mean(axis=1)
-        
-        SystemPerformanceIndex = M_ResilienceCalculus.Calculate_Integral(SystemPerformanceRating)
-        
-        '''
-        CALCULATE CONSEQUENCES INDICATORS
-        '''
-        SystemConsequencesRating = M_ResilienceCalculus.Caculate_ConsequencesRating(
-            StudyDatabase = STUDY_DB,
-            AnswersDatabase = ANSWERS_DB,
-            IndicatorsLibrary = self.IndicatorsLibrary,
-            IndicatorsSetup = self.IndicatorsSetup,
-            Situation = self.current_situation)
-
-        SystemConsequencesRating["Average"] = SystemConsequencesRating.mean(axis=1)
-        
-        SystemConsequencesIndex = M_ResilienceCalculus.Calculate_Integral(SystemConsequencesRating)
-
-        '''
-        PLOT FUNCTIONAL RESULTS
-        '''
+    def PlotDashboardPage(self):
+        ''' PLOT FUNCTIONAL RESULTS '''
         #Plot the Functional Objectives Completness
         M_PlotGraphs.plotHorizontalFunctionalBars(
-            DataFrame = ObjectivesCompletness,
+            DataFrame = self.STUDY.Situations[self.selected_situation_id].functional_objectives_completeness,
             labelColumn = "FullLabel",
             DestinyWidget = self.ui.FOC_Plot,
             Type = "Completness")
 
         #Plot the Functional Objectives Rating
         M_PlotGraphs.plotHorizontalFunctionalBars(
-            DataFrame = FunctionalObjectivesRating,
+            DataFrame = self.STUDY.Situations[self.selected_situation_id].functional_objectives_rating,
             labelColumn = "FullLabel",
             DestinyWidget = self.ui.FOR_Plot,
             Type = "Rating")
-
-        '''
-        PLOT PERFORMANCE RESULTS
-        '''
-        M_PlotGraphs.plotPerformances(DataFrame = SystemPerformanceRating,
-                                      Legend = self.IndicatorsLibrary,
-                                      DestinyWidget = self.ui.PSR_Plot)
-
-        M_PlotGraphs.plotPerformances(DataFrame = SystemConsequencesRating,
-                                      Legend = self.IndicatorsLibrary,
-                                      DestinyWidget = self.ui.PCR_Plot)
-
-        #Calculate Performance Dimension Rating
-        PerformanceDimensionRating = M_ResilienceCalculus.Caculate_PerformanceDimensionRating(self.Study.Weights, SystemPerformanceIndex, SystemConsequencesIndex)
         
-        '''
-        CALCULATE AND PLOT OVERALL RESULTS
-        '''
-        OverallRating = M_ResilienceCalculus.Caculate_OverallDimensionRating(self.Study.Weights, FunctionalDimensionRating.at["1", "Rating"], PerformanceDimensionRating)
+        #Functional Criteria Rating is plotted in the updateFCR function upon selection on combobox
 
+        ''' PLOT PERFORMANCE RESULTS '''
+        M_PlotGraphs.plotPerformances(
+            DataFrame       = self.STUDY.Situations[self.selected_situation_id].system_performance_rating,
+            Legend          = self.STUDY.IndicatorsLibrary,
+            DestinyWidget   = self.ui.PSR_Plot)
+
+        M_PlotGraphs.plotPerformances(
+            DataFrame       = self.STUDY.Situations[self.selected_situation_id].system_consequences_rating,
+            Legend          = self.STUDY.IndicatorsLibrary,
+            DestinyWidget   = self.ui.PCR_Plot)
+
+        ''' PLOT OVERALL RESULTS '''
         #Plot the Functional Dimension Rating
         M_PlotGraphs.plotResilienceCircle(
-            DataFrame = FunctionalDimensionRating,
-            DestinyWidget = self.ui.OFR_Plot)    
+            DataFrame       = self.STUDY.Situations[self.selected_situation_id].functional_rating,
+            DestinyWidget   = self.ui.OFR_Plot)    
  
         #Plot the Perforamnce Dimension Rating
         M_PlotGraphs.plotResilienceCircle(
-            DataFrame = PerformanceDimensionRating,
-            DestinyWidget = self.ui.OPR_Plot) 
+            DataFrame       = self.STUDY.Situations[self.selected_situation_id].performance_rating,
+            DestinyWidget   = self.ui.OPR_Plot) 
         
         #Plot the Overall Rating
         M_PlotGraphs.plotResilienceCircle(
-            DataFrame = OverallRating,
-            DestinyWidget = self.ui.ORR_Plot)
+            DataFrame       = self.STUDY.Situations[self.selected_situation_id].overall_rating,
+            DestinyWidget   = self.ui.ORR_Plot)
         
-        self.current_situation.functional_index = FunctionalDimensionRating.at["1", "Rating"]
-        self.current_situation.performance_index = PerformanceDimensionRating
-        self.current_situation.overall_index = OverallRating
-        
-    """    def onPSSComboBoxTextChanged(self):
-
-        #If a baseline scenario already exists
-        if self.baseline_scenario:
-            # Get the items that are selected on the QListView
-            self.additional_scenarios = M_Operate_GUI_Elements.getQListSelection(self.ScenarioList_model)
-
-            for plot in self.PerformancePlots:
-                #turn off the current baseline scenario
-                plot.update_series_visibility(self.baseline_scenario, False)
-                if self.additional_scenarios:                                               #if other scenarios are activated
-                    for additional_scenario in self.additional_scenarios:
-                        plot.update_series_visibility(additional_scenario, False)           #turn off those scenarios
-
-
-        new_baseline_scenario = self.ui.PSS_ComboBox.currentText()                          #set the new baseline scenario from the ComboBox text
-        new_baseline_scenario_index = str(self.ScenarioSetup[self.ScenarioSetup['ScenarioName'] == new_baseline_scenario].index[0])
-        if new_baseline_scenario:                                                           #update the items to be shown on the QListView
-            M_Operate_GUI_Elements.updateQListView(ListView = self.ui.PSS_ScenarioList,
-                            Model = self.ScenarioList_model,
-                            Data = self.existing_scenarios,
-                            Exclude = new_baseline_scenario)
-            for plot in self.PerformancePlots:
-                plot.update_series_visibility(new_baseline_scenario_index, True)              #activate the new baseline scenario on the plot
-                plot.set_baseline_scenario(new_baseline_scenario)                       #give to the plot class the name of the baseline scenario
-
-            # Store the new baseline scenario for the next update
-            self.baseline_scenario = new_baseline_scenario_index                              #set the current baselinescenario from the new value for future changes
-    """
-
-    """    def updatePerformancePlots(self, index):
-        # Get the item from the model using the index
-        item = self.ScenarioList_model.itemFromIndex(index)
-        if not item:
-            return None
-
-        # Get the series name and its new check state
-        series_name = item.text()
-        visibility = item.checkState() == Qt.Checked
-
-        # Call the plots methods to update the series visibility
-        for plot in self.PerformancePlots:
-            plot.update_series_visibility(series_name, visibility)
-
-            if visibility == False:
-                plot.clearSelected_lines_and_text()
-
-        # self.SPR_plot.canvas.draw()
-    """
-
-    def add_labels_to_dataframes(self):
-        
-        '''
-        ADD SOME COLUMNS TO DATAFRAMES FOR FURTHER PLOTING
-        '''
-        #Get the all the data from answers and tables and do some compatibilizations
-        #Add ShortLabel and FullLabel to self.objectives
-        self.objectives["ShortLabel"] = ''
-        self.objectives["FullLabel"] = ''
-
-        for index, row in self.objectives.iterrows():
-            if row["DimensionID"] == 1:
-                DimensionLetter = "F"
-            elif row["DimensionID"] == 2:
-                DimensionLetter = "P"
-            self.objectives.at[index, "ShortLabel"] = f"Obj. {DimensionLetter}{row['ObjectiveSubID']}"
-            self.objectives.at[index,"FullLabel"] = f"{self.objectives.at[index,'ShortLabel']} - {row['ObjectiveName']}"
-
-        #Add ShortLabel and FullLabel to self.criteria
-        self.criteria["ShortLabel"] = ''
-        self.criteria["FullLabel"] = ''
-        for index, row in self.criteria.iterrows():
-            Dimension = row["ObjectiveID"].split(".")[0]
-            Objective = row["ObjectiveID"].split(".")[1]
-            if Dimension == "1":
-                DimensionLetter = "F"
-            elif Dimension == "2":
-                DimensionLetter = "P"
-            self.criteria.at[index,"ShortLabel"] = f"Crit. {DimensionLetter}{Objective}.{row['CriteriaSubID']}"
-            self.criteria.at[index,"FullLabel"] = f"{self.criteria.at[index, 'ShortLabel']} - {row['CriteriaName']}"
-
     def updateFCR(self):
-
         selected_text = self.ui.FCR_ComboBox.currentText()
 
         if selected_text != '':
-            ObjectiveID = f'1.{selected_text.split(" - ")[0].split("F")[1]}'
-            showing_FunctionalCriteriaRating = self.FunctionalCriteriaRating[self.FunctionalCriteriaRating["ObjectiveID"]==ObjectiveID]
-            # showing_FunctionalCriteriaRating.reset_index(inplace = True)
+            ObjectiveID = f'1.{selected_text.split(" - ")[0].split("S")[1]}'
+            showing_FunctionalCriteriaRating = self.STUDY.Situations[self.selected_situation_id].functional_criteria_rating[self.STUDY.Situations[self.selected_situation_id].functional_criteria_rating["ObjectiveID"]==ObjectiveID]
 
             M_PlotGraphs.plotHorizontalFunctionalBars(
-                DataFrame = showing_FunctionalCriteriaRating,
-                labelColumn = "FullLabel",
-                DestinyWidget = self.ui.FCR_Plot,
-                Type = "Rating")
-
-            # M_PlotGraphs.plotHorizontalBars(DataFrame = showing_FunctionalCriteriaRating,
-            #                     labelColumn = "FullLabel",
-            #                     dataColumn = "MeanAnswerScores",
-            #                     xScale = 1,
-            #                     DestinyWidget = self.ui.FCR_Widget,
-            #                     MultiBar = False)
-
-        # else:
-        #     noob = pd.DataFrame([], columns=['Column1'])
-
-        #     M_PlotGraphs.plotHorizontalBars(DataFrame = noob,
-        #             xScale = 1,
-        #             labelColumn = '',
-        #             dataColumn = "Column1",
-        #             DestinyWidget = self.ui.FCR_Widget,
-        #             MultiBar = True)
+                DataFrame       = showing_FunctionalCriteriaRating,
+                labelColumn     = "FullLabel",
+                DestinyWidget   = self.ui.FCR_Plot,
+                Type            = "Rating")
 
     def closeEvent(self, Event):
         atexit.register(M_OperateDatabases.closeDatabaseConnections, [RESILISTORM_DB, STUDY_DB, ANSWERS_DB])
         super().closeEvent(Event)
-
-class Study():
-
-    def __init__(self, WelcomeDialog: WelcomeDialog, Study_Database: QSqlDatabase, Methodolohy_Database: QSqlDatabase):
-        
-        self.Name = WelcomeDialog.study_name
-        self.Directory = WelcomeDialog.study_directory
-        self.Methodology_path = None
-        self.Methodology = Methodolohy_Database
-        self.Database_path =  None
-        self.Database = Study_Database
-        self.Situations = {}      #dict of SituationID: Situation
-        self.Weights = None         #dict of weights by level, as pd.Dataframe
-        self.Selected_indicators = None      #pd.Dataframe
-
-        # Automatically initialize the methodology and database paths
-        self.set_files_and_paths(WelcomeDialog)
-
-        M_OperateDatabases.establishDatabaseConnections([(self.Methodology, self.Methodology_path),
-                                                         (self.Database, self.Database_path)
-                                                         ])
-
-        # Create Study Database default tables
-        if WelcomeDialog.status == "New":
-            M_OperateDatabases.create_study_tables(Study_Database)
-            M_OperateDatabases.fillIndicatorsSetup(self.Methodology, self.Database)
-            M_OperateDatabases.FillNewWeightsDatabase(self.Methodology, self.Database)
-            
-        else:
-            self.update_situations_from_database()
-            self.update_weights_from_database()
-            self.update_indicators_from_database()
-
-
-    def set_files_and_paths(self, WelcomeDialog: WelcomeDialog):
-        # Create a copy of the Methodology Database and Study Structure Database to the Study Directory
-        Original_Methodology = 'database\REFUSS_V8.db'
-        new_methodology_filename  = "RESILISTORM.db"
-
-        Original_Study = 'database\Study_Structure.db'
-        new_study_filename  = f"{self.Name}-STUDY.db"
-
-        if WelcomeDialog.status == "New":
-            # Make a copy of the Methodology Database to the Study Directory
-            copy_and_rename_file(Original_Methodology, self.Directory, new_methodology_filename)
-
-            # Make a copy of the Study Strucutre Database to the Study Directory
-            copy_and_rename_file(Original_Study, self.Directory, new_study_filename)
-
-        self.Methodology_path =  os.path.join(self.Directory, new_methodology_filename)
-        self.Database_path = os.path.join(self.Directory, new_study_filename)       
-   
-   
-    def update_situations_from_database(self):
-        situations = M_OperateDatabases.fetch_table_from_database(self.Database, "StudySituations")
-        for index, row in situations.iterrows():
-            situation = M_SituationManager.Situation()
-            situation.id = row["SituationID"]
-            situation.name = row["SituationName"]
-            situation.system_config = row["SystemConfiguration"]
-            situation.timeframe = row["TimeFrame"]
-            rainfall_values = row["Rainfall"].split("; ")
-            situation.rainfall = [int(value) for value in rainfall_values]  #list of Rainfall return periods as integers!
-            self.Situations[situation.id] = situation
-        
-    def update_situations_from_generator(self, SituationGenerator: M_SituationManager.SituationGenerator):
-        for index, row in SituationGenerator.get_situations().iterrows():
-            situation = M_SituationManager.Situation()
-            situation.update(SituationGenerator, row["SituationID"])
-            self.Situations[situation.id] = situation
-        
-    def update_weights_from_database(self):
-        DimensionsWeight = M_OperateDatabases.fetch_table_from_database(self.Database, "DimensionsWeight")
-        DimensionsWeight.set_index("DimensionID", inplace=True)
-        ObjectivesWeight = M_OperateDatabases.fetch_table_from_database(self.Database, "ObjectivesWeight")
-        ObjectivesWeight.set_index("ObjectiveID", inplace=True)
-        CriteriaWeight = M_OperateDatabases.fetch_table_from_database(self.Database, "CriteriaWeight")
-        CriteriaWeight.set_index("CriteriaID", inplace=True)
-        self.Weights = {'Dimensions': DimensionsWeight, 'Objectives': ObjectivesWeight, 'Criteria': CriteriaWeight}
-        
-    def update_indicators_from_database(self):
-        indicators_setup = M_OperateDatabases.fetch_table_from_database(self.Database, "IndicatorsSetup")
-        self.Selected_indicators = indicators_setup[indicators_setup["SelectedState"] == 1].copy(deep = True)
-        
-        for index, row in self.Selected_indicators.iterrows():
-            self.Selected_indicators.loc[index,  "IndicatorClass"] = re.sub(r'\d', '', row["IndicatorID"])
-        
-        self.Selected_indicators.set_index("IndicatorID", inplace = True)
-        pass
-              
+                    
 class FunctionalMetricWidget(QWidget):
     def __init__(self,
                  metric_id: str,
@@ -1705,7 +1019,7 @@ class FunctionalMetricWidget(QWidget):
 
         # Create the widgets for the metric block (e.g., labels, answer widget)
         if metric_id.startswith('1'):
-            self.dimension = "F"
+            self.dimension = "S"
         else:
             self.dimension = "P"
 
@@ -1731,7 +1045,7 @@ class FunctionalMetricWidget(QWidget):
         Metric_block.addWidget(metric_question_label)
 
         # Logic to create the appropriate answer widget based on the answer type
-        if self.dimension == "F":
+        if self.dimension == "S":
             OptionsWidget = QWidget()
             self.OptionsLayout = QVBoxLayout(OptionsWidget)
             self.OptionsLayout.setSpacing(0)
@@ -1826,7 +1140,7 @@ def PerformanceMetricBlock(metric_id, metric_name, metric_question):
 
     # Create the widgets for the metric block (e.g., labels, answer widget)
     if metric_id.startswith('1'):
-        Dimension = "F"
+        Dimension = "S"
     else:
         Dimension = "P"
 
@@ -1921,7 +1235,7 @@ def PerformanceMetricBlock(metric_id, metric_name, metric_question):
 
     return Metric_block, Setup_model, table_view
 
-def updateHazardTableViews(StackedWidget: QStackedWidget):
+"""def updateHazardTableViews(StackedWidget: QStackedWidget):
 
     NrHazards = M_OperateDatabases.countDatabaseRows(ANSWERS_DB, "HazardSetup")
     NrScenarios = M_OperateDatabases.countDatabaseRows(ANSWERS_DB, "ScenarioSetup")
@@ -2094,16 +1408,16 @@ def updateHazardTableViews(StackedWidget: QStackedWidget):
             page.layout().itemAt(1).widget().setWidget(scroll_area)
 
         else:
-            print("Page with pageName '2.2.1' not found.")
+            print("Page with pageName '2.2.1' not found.")"""
 
-def copy_and_rename_file(source_file, destination_directory, new_file_name):
+"""def copy_and_rename_file(source_file, destination_directory, new_file_name):
     shutil.copy2(source_file, destination_directory)
     new_file_path = os.path.join(destination_directory, new_file_name)
     os.rename(os.path.join(destination_directory, os.path.basename(source_file)), new_file_path)
 
-    return new_file_path
+    return new_file_path"""
 
-def main():
+def main():   
     global RESILISTORM_DB, STUDY_DB, ANSWERS_DB, temp_DB
 
     app = QApplication(sys.argv)
@@ -2118,11 +1432,19 @@ def main():
         ANSWERS_DB = QSqlDatabase.addDatabase("QSQLITE", "Connection3")
         temp_DB = QSqlDatabase.addDatabase("QSQLITE", "TemporaryConnection")
 
-        MainPage = MainWindow(WelcomePage)
+        
+        
+        Study = STUDY(WelcomeDialog = WelcomePage,
+                Methodolohy_Database = RESILISTORM_DB,
+                Study_Database = STUDY_DB,
+                Temp_Database = temp_DB)
+
+        MainPage = MainWindow(Study)
+
         #Set initial size of the main window
         MainPage.resize(1280, 720)
         MainPage.show()
-
+        
         sys.exit(app.exec())
 
     else:

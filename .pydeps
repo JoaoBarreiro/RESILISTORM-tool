@@ -1,0 +1,16 @@
+[pydeps]
+
+max_bacon = 4
+no_show = False
+verbose = 0
+pylib = False
+cluster = False
+exclude =
+    resources_rc
+    matplotlib
+    pandas
+    numpy
+    os
+    re
+    sys
+    PySide6

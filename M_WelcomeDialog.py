@@ -3,13 +3,8 @@ import os
 import shutil
 import re
 
-from PySide6.QtWidgets import (QMainWindow, QApplication, QPushButton, QTreeWidget, QTreeWidgetItem,
-                            QVBoxLayout, QButtonGroup, QRadioButton, QWidget,
-                            QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit, QComboBox,
-                            QScrollArea, QSizePolicy, QSpacerItem, QFileDialog, QTableView, QDialogButtonBox,
-                            QMessageBox, QDialog, QStyledItemDelegate, QHeaderView, QMenu, QAbstractItemView,
-                            QAbstractScrollArea, QStyleOptionButton, QStyle, QTableWidgetItem, QFrame, QHBoxLayout, QLayout)
-from PySide6.QtCore import Qt, Signal, QEvent, QAbstractTableModel, QModelIndex, QCoreApplication
+from PySide6.QtWidgets import QFileDialog, QMessageBox, QDialog
+from PySide6.QtCore import Qt
 
 from W_WelcomeDialog import Ui_WelcomeDialog
 from W_NewStudyDialog import Ui_NewStudyDialog

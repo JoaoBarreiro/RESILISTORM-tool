@@ -4,7 +4,7 @@ from openpyxl import Workbook, load_workbook
 
 def main():
     # SQLite3 database file path
-    db_file = 'database\REFUSS_V0.db'
+    db_file = 'database\REFUSS_V8.db'
 
     # SQL query to retrieve data
     queryA = "SELECT CriteriaID, MetricSubID, MetricID, Source, MetricName, MetricQuestion, Answer_Type FROM Metrics;"
@@ -125,7 +125,7 @@ def main():
             
         row_number = writeline(sheet, row_number, row['FullLabel'], 'Metric')
         row_number = writeline(sheet, row_number, row['Source'], 'Source')
-        row_number = writeline(sheet, row_number, row['Answer_Type'], 'Answer type')
+        row_number = writeline(sheet, row_number, row['AnswerType'], 'Answer type')
         row_number = writeline(sheet, row_number, row['MetricQuestion'], 'Question')
         
         for i, option in enumerate(AnswersOptions):

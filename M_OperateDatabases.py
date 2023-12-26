@@ -1,9 +1,6 @@
-from os import path
 import pandas as pd
 import sys
 from PySide6.QtSql import QSqlQuery, QSqlDatabase
-
-import M_SituationManager
 
 def establishDatabaseConnections(DatabaseList: list):
     """
@@ -33,7 +30,10 @@ def closeDatabaseConnections(DatabaseList: list):
         if database.isOpen():
             database.close()
 
-def createSituationTables(REFUSS_Database:QSqlDatabase, Study_database: QSqlDatabase, Situation_Database: QSqlDatabase, Situation: M_SituationManager.Situation):
+def createSituationTables(REFUSS_Database:QSqlDatabase,
+                          Study_database: QSqlDatabase,
+                          Situation_Database:QSqlDatabase,
+                          Situation: 'SITUATION'):
     
     query = QSqlQuery(Situation_Database)
 
@@ -343,7 +343,7 @@ def FillNewWeightsDatabase(REFUSS_Database: QSqlDatabase, Target_Database: QSqlD
                 # Calculate and populate the weights for Criteria_Weight table within the current objective
                 criteria_weight = 1 / len(criteria)
 
-                if query_B.exec(f"INSERT INTO CriteriaWeight VALUES ('{criteria_id}', '{criteria_name}', '{criteria_weight}');"):
+                if query_B.exec(f'INSERT INTO CriteriaWeight VALUES ("{criteria_id}", "{criteria_name}", {criteria_weight});'):
                     Target_Database.commit()
                 else:
                     print(f"Error inserting into CriteriaWeight: {query_B.lastError().text()}")
@@ -481,7 +481,7 @@ def fillIndicatorsSetup(REFUSS_Database: QSqlDatabase, Target_Database: QSqlData
 
 def updateB1TableUses(Situation_Database: QSqlDatabase,
                   Study_Database: QSqlDatabase,
-                  Situation: M_SituationManager.Situation,
+                  Situation: 'SITUATION',
                   old_value: str = None,
                   new_value: str = None):
     

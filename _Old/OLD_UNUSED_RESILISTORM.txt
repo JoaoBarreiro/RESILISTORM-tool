@@ -1,0 +1,317 @@
+#### OLD/UNUSED CODE SNIPETS FROM RESILISTORM.py
+#import all needed libraries
+
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
+from PySide6.QtSql import *
+from PyQt6 import uic
+
+
+class SetupWindow(QMainWindow):
+
+    windowClosed = Signal(str)
+
+    def __init__(self, SetupTable):
+        super().__init__()
+        self.ui = Ui_HazardSetup()
+        self.ui.setupUi(self)
+
+        #Set the headers
+        if SetupTable == "HazardSetup":
+            Label = "HAZARD SETUP"
+            self.setWindowTitle("Hazard Setup Window")
+        elif SetupTable == "ScenarioSetup":
+            Label = "SCENARIO SETUP"
+            self.setWindowTitle("Scenario Setup Window")
+
+        self.SetupOption = SetupTable
+
+        self.ui.SetupLabel.setText(Label)
+        self.ui.SetupLabel.setFont(MyFont(12, True))
+
+        self.populate_table(SetupTable)
+
+        #Customize the TableView
+        self.ui.SetupTableView.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
+        self.ui.SetupTableView.verticalHeader().setDefaultAlignment(Qt.AlignLeft)
+        self.ui.SetupTableView.resizeRowsToContents()
+
+        #Set actions for buttons
+        self.ui.Add_BT.clicked.connect(self.add_row)
+        self.ui.Del_BT.clicked.connect(self.delete_row)
+        self.ui.Close_BT.clicked.connect(self.closeSetupWindow)
+
+    def populate_table(self, SetupCase):
+        # Ensure that the database connection is open before creating the model
+        if not ANSWERS_DB.isOpen():
+            QMessageBox.critical(self, "Database Error", "ANSWERS_DB is not open.")
+            return
+
+        # Create a QSqlTableModel
+        self.model = QSqlTableModel(db=ANSWERS_DB)
+        self.model.setTable(SetupCase)
+        self.model.setEditStrategy(QSqlTableModel.EditStrategy.OnFieldChange)
+
+        # Fetch the data from the table
+        if not self.model.select():
+            QMessageBox.critical(self, "Database Error", "Failed to fetch data from the table.")
+            return
+
+        # Set the headers
+        if SetupCase == "HazardSetup":
+            headers = ["Hazard Name", "Unit of hazard classification", "Comment"]
+
+            hazard_delegate = HazardSetupDelegate()
+
+            self.ui.SetupTableView.setItemDelegate(hazard_delegate)
+
+        elif SetupCase == "ScenarioSetup":
+            headers = ["Scenario Name", "System config.", "Rainfall", "Outfall Cond.", "Comment"]
+
+        for i, header in enumerate(headers):
+            self.model.setHeaderData(i, Qt.Horizontal, header)
+
+        self.ui.SetupTableView.setModel(self.model)
+        self.ui.SetupTableView.resizeColumnsToContents()
+        self.ui.SetupTableView.setEditTriggers(QTableView.AllEditTriggers)
+
+    def add_row(self):
+        # Get the number of rows in the model
+        num_rows = self.model.rowCount()
+
+        # Insert a new record at the end of the model
+        record = self.model.record()
+        if self.SetupOption == "HazardSetup":
+            record.setValue("HazardName", "SelectHazard")
+        elif self.SetupOption == "ScenarioSetup":
+            record.setValue("ScenarioName", "NewScenario")
+
+        self.model.insertRecord(num_rows, record)
+
+        # # Manually update the view to reflect the changes
+        # self.model.select()
+
+        # Optional: Scroll to the newly added row
+        self.ui.SetupTableView.scrollToBottom()
+
+        # Reset the view to reflect the changes
+        self.ui.SetupTableView.reset()
+
+    def delete_row(self):
+        # Get the selected row indatabasedices
+        selection_model = self.ui.SetupTableView.selectionModel()
+        selected_rows = selection_model.selectedRows()
+
+        # Confirm deletion with the user
+        if self.SetupOption == "HazardSetup":
+            message = "Are you sure you want to delete the selected hazard?"
+        elif self.SetupOption == "ScenarioSetup":
+            message = "Are you sure you want to delete the selected scenario?"
+
+        reply = QMessageBox.question(self, "Delete Row", f"{message}", QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            return
+
+        # Remove the rows from the model
+        else:
+            for index in selected_rows:
+                self.model.removeRow(index.row())
+
+        # Submit changes to the database
+        if not self.model.submitAll():
+            QMessageBox.critical(self, "Error", "Failed to delete row(s) from the database.")
+
+        # Manually update the view to reflect the changes
+        self.model.select()
+
+    def closeSetupWindow(self):
+        if self.SetupOption == "HazardSetup":
+            # Check if the mandatory column has been filled
+            mandatory_column_index = 1  # Number of hazard classes
+
+            for row in range(self.model.rowCount()):
+                value = self.model.index(row, mandatory_column_index).data()
+                if not value:
+                    QMessageBox.critical(self, "Error", "Must select a Hazard Unit!")
+                    return
+
+        confirm_dialog = QMessageBox.question(self, "Confirmation", "Do you want to close the window?", QMessageBox.Yes | QMessageBox.No)
+        if confirm_dialog == QMessageBox.Yes:
+            self.windowClosed.emit(self.SetupOption)
+            self.model.select()
+            self.close()
+
+    def savechanges(self):
+        #self.model.submitAll()
+        #self.closeSetupWindow()
+        pass
+
+class ConfirmDialog(QDialog):
+    def __init__(self, parent=None):
+        """
+        Initializes the Confirmation dialog.
+
+        Args:
+            parent (QWidget): The parent widget of the dialog. Defaults to None.
+
+        Returns:
+            None
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Confirmation")
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+
+        message_label = QLabel("Are you sure?")
+        layout.addWidget(message_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
+        layout.addWidget(button_box)
+
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        
+class CustomSqlTableModel(QSqlTableModel):
+    """
+    Initializes a new instance of the class with the specified column names and parent.
+    Parameters:
+        column_names (list): A list of strings representing the column names.
+        parent: The parent object (default: None).
+    """
+    def __init__(self, column_names, parent=None):
+        super().__init__(parent)
+        self.column_names = column_names
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            if section < len(self.column_names):
+                return self.column_names[section]
+        return QSqlTableModel.headerData(self, section, orientation, role)
+
+class HazardSetupDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super(HazardSetupDelegate, self).__init__(parent)
+
+    def createEditor(self, parent, option, index):
+
+        # #set the spacial case for the "Buildings Damage (B1)" hazard
+        # if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
+        #     # Use the custom button-like delegate for column 1 when the text in column 0 is "Buildings Damage (B1)"
+        #     editor = QPushButton("Setup", parent)
+        #     editor.clicked.connect(self.openB1SetupWindow)  # Connect the button click to a custom slot
+        #     return editor
+
+        # Create a QComboBox editor for column 0 and 1 and its options
+        if index.column() in (0,1):
+            editor = QComboBox(parent)
+            if index.column() == 0:
+                editor.addItems(M_OperateDatabases.fetch_table_from_database(RESILISTORM_DB, "HazardLibrary")["ShowName"])
+            elif index.column() == 1:
+                editor.addItems(["%", "Area"])
+            return editor
+
+        # Default case: Use the base editor for other columns (regular text cell)
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor, index):
+        # Set the current value of the editor based on the model's data
+        value = index.model().data(index, Qt.EditRole)
+        if isinstance(editor, QComboBox):
+            editor.setCurrentText(value)
+        # No need to handle QPushButton here since we don't use currentText()
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            # Update the model's data when the editor value changes for QComboBoxes
+            model.setData(index, editor.currentText(), Qt.EditRole)
+
+    def editorEvent(self, event, model, option, index):
+        # Override editorEvent to handle custom button click event
+        if event.type() == QEvent.MouseButtonRelease and index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
+            # Custom button was clicked, update the model with "Custom" value
+            model.setData(index, "Custom", Qt.EditRole)
+            return True  # Return True to indicate that the event has been handled
+
+        return super().editorEvent(event, model, option, index)
+    
+class ButtonLikeDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super(ButtonLikeDelegate, self).__init__(parent)
+
+    def paint(self, painter, option, index):
+        # Check if the conditions are met to draw the cell as a button
+        if index.column() == 1 and index.sibling(index.row(), 0).data() == "Buildings Damage (B1)":
+            # Draw the cell as a button
+            button_option = QStyleOptionButton()
+            button_option.rect = option.rect
+            button_option.state = option.state
+            button_option.palette = option.palette
+            button_option.text = index.data(Qt.DisplayRole)
+            QApplication.style().drawControl(QStyle.CE_PushButton, button_option, painter)
+        else:
+            # Draw the cell as regular text cell
+            super().paint(painter, option, index)
+
+class IntRangeDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.validator = QIntValidator(1, 10, self)
+
+    def createEditor(self, parent, option, index):
+        editor = super().createEditor(parent, option, index)
+        if index.column() == 1:
+            editor.setValidator(self.validator)
+        return editor
+
+def onPSSComboBoxTextChanged(self):
+
+    #If a baseline scenario already exists
+    if self.baseline_scenario:
+        # Get the items that are selected on the QListView
+        self.additional_scenarios = M_Operate_GUI_Elements.getQListSelection(self.ScenarioList_model)
+
+        for plot in self.PerformancePlots:
+            #turn off the current baseline scenario
+            plot.update_series_visibility(self.baseline_scenario, False)
+            if self.additional_scenarios:                                               #if other scenarios are activated
+                for additional_scenario in self.additional_scenarios:
+                    plot.update_series_visibility(additional_scenario, False)           #turn off those scenarios
+
+
+    new_baseline_scenario = self.ui.PSS_ComboBox.currentText()                          #set the new baseline scenario from the ComboBox text
+    new_baseline_scenario_index = str(self.ScenarioSetup[self.ScenarioSetup['ScenarioName'] == new_baseline_scenario].index[0])
+    if new_baseline_scenario:                                                           #update the items to be shown on the QListView
+        M_Operate_GUI_Elements.updateQListView(ListView = self.ui.PSS_ScenarioList,
+                        Model = self.ScenarioList_model,
+                        Data = self.existing_scenarios,
+                        Exclude = new_baseline_scenario)
+        for plot in self.PerformancePlots:
+            plot.update_series_visibility(new_baseline_scenario_index, True)              #activate the new baseline scenario on the plot
+            plot.set_baseline_scenario(new_baseline_scenario)                       #give to the plot class the name of the baseline scenario
+
+        # Store the new baseline scenario for the next update
+        self.baseline_scenario = new_baseline_scenario_index                              #set the current baselinescenario from the new value for future changes
+
+def updatePerformancePlots(self, index):
+        # Get the item from the model using the index
+        item = self.ScenarioList_model.itemFromIndex(index)
+        if not item:
+            return None
+
+        # Get the series name and its new check state
+        series_name = item.text()
+        visibility = item.checkState() == Qt.Checked
+
+        # Call the plots methods to update the series visibility
+        for plot in self.PerformancePlots:
+            plot.update_series_visibility(series_name, visibility)
+
+            if visibility == False:
+                plot.clearSelected_lines_and_text()
+
+        self.SPR_plot.canvas.draw()
+
