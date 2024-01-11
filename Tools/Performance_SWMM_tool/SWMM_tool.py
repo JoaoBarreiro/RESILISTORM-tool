@@ -328,6 +328,12 @@ def main():
     RptFilePath = r"I:\O meu disco\PhD\Tese\REFUSS\SWMM_SCRIPT\TESTESWMM.rpt"
     OutFilePath = r"I:\O meu disco\PhD\Tese\REFUSS\SWMM_SCRIPT\TESTESWMM.out"
     
+    Start_Date = datetime.datetime(2023, 6, 28, 0, 0, 0)
+    End_Date = datetime.datetime(2023, 6, 28, 6, 0, 0)
+
+    FloodAdmissibleDepth = (0.2, 0.7) #Max. admissible flood depth to assign Failure Performance [m] on minor [0] and major system [1]
+    
+    
     Nodes = GetFromReport(RptFilePath, "Node Summary")
     Links = GetFromReport(RptFilePath, "Link Summary")
     CrossSections = GetFromReport(RptFilePath, "Cross Section Summary")
@@ -336,7 +342,6 @@ def main():
     #print(Links)
     #print(CrossSections)
     
-    FloodAdmissibleDepth = (0.2, 0.7) #Max. admissible flood depth to assign Failure Performance [m] on minor [0] and major system [1]
     
     NodesResilienceParameters = CalculateNodesResiliencePararameters(Nodes, Links, CrossSections, FloodAdmissibleDepth[0])
     
