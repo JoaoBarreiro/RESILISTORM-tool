@@ -53,7 +53,7 @@ class tool_GUI(QMainWindow):
             self.ui.RPT_Filepath.setText(fileName)
             
             #Get simulation start and end dates and set them in the GUI
-            self.SimulationDates, self.RPT_TimeStep = self.getSimulationDates()
+            self.SimulationDates, self.RPT_TimeStep, self.AllowPonding = self.getSimulationOptions()
             
             
             self.ui.StartingDate.setDateTime(self.SimulationDates[0])
@@ -72,7 +72,7 @@ class tool_GUI(QMainWindow):
             fileName, _ = QFileDialog.getOpenFileName(self, "Select Node List File", "", "(*.txt)")     
             self.ui.NodeList_Filepath.setText(fileName)
     
-    def getSimulationDates(self):
+    def getSimulationOptions(self):
         """
         Retrieves the simulation start and end dates from the given report file.
 
@@ -86,7 +86,7 @@ class tool_GUI(QMainWindow):
         
         ReportLines = getFileLines(self.ui.RPT_Filepath.text())
 
-        for index, line in enumerate(ReportLines):
+        for line in ReportLines:
             if "Starting Date" in line:
                 SimulationStartDate = datetime.datetime.strptime(line.split(". ")[1].strip(), "%m/%d/%Y %H:%M:%S")
             elif "Ending Date" in line:
@@ -94,8 +94,14 @@ class tool_GUI(QMainWindow):
             elif "Report Time Step" in line:
                 Report_TimeStep = datetime.datetime.strptime(line.split(". ")[1].strip(), "%H:%M:%S").time()
                 break
+            elif "Ponding Allowed" in line:
+                Ponding = line.split(". ")[1]
+                if Ponding == "YES":
+                    AllowPonding = True
+                else:
+                    AllowPonding = False
 
-        return (SimulationStartDate, SimulationEndDate), Report_TimeStep
+        return (SimulationStartDate, SimulationEndDate), Report_TimeStep, AllowPonding
      
     def verify_inputs(self):
         self.RPT = self.ui.RPT_Filepath.text()
@@ -205,7 +211,10 @@ def GetFromReport(RptFilePath, ReportSection):
     
     return output
 
-def CalculateNodesPararameters(Nodes, Links, CrossSections):
+def CalculateNodesPararameters(Nodes: pd.DataFrame,
+                               Links: pd.DataFrame,
+                               CrossSections: pd.DataFrame, 
+                               AllowPonding: bool):
 
     #0. Get only nodes of JUNCTION Type
     NodesParameters = Nodes[Nodes["Type"] == "JUNCTION"].copy()
@@ -226,19 +235,28 @@ def CalculateNodesPararameters(Nodes, Links, CrossSections):
                 LinkName = linkID
                 MaxFullDepth = CrossSections.loc[linkID, "FullDepth"]
                 MaxFullFlow = CrossSections.loc[linkID, "FullFlow"]
-                
-        #1.3. Assign attributes to the node
+        
+        #1.3. Verify if node has PondedArea
+        if AllowPonding:
+            if Nodes.at[nodeID, "PondedArea"] == 0:
+                FloodingNode = False
+            else:
+                FloodingNode = True
+        else:
+            FloodingNode = True
+        
+        #1.4. Assign attributes to the node
         NodesParameters.loc[nodeID, "LinkName"] = LinkName
         NodesParameters.loc[nodeID, "MaxFullDepth"] = MaxFullDepth
         NodesParameters.loc[nodeID, "MaxFullFlow"] = MaxFullFlow
+        NodesParameters.loc[nodeID, "FloodingNode"] = FloodingNode
            
     #4. Calculate each node weight based on the respective linked MaxFullFlow -> W(i) = FullFlow(i) / (Soma(FullFlow(i:n))
     for nodeID, _ in NodesParameters.iterrows():
         NodesParameters.loc[nodeID, "Weight"] = NodesParameters.loc[nodeID, "MaxFullFlow"] / NodesParameters["MaxFullFlow"].sum()
     
-    NodesParameters = NodesParameters[["LinkName", "MaxDepth", "MaxFullDepth", "MaxFullFlow", "Weight"]]
-    #NodesParameters = NodesParameters[["LinkName", "MaxFullDepth", "MaxFullFlow", "Weight", "SurchargeAdmissibleDepth", "FloodAdmissibleDepth"]]
-    
+    NodesParameters = NodesParameters[["LinkName", "MaxDepth", "MaxFullDepth", "MaxFullFlow", "Weight", "FloodingNode"]]
+
     #print(NodesParameters)
             
     return NodesParameters
@@ -323,17 +341,26 @@ def CalculatePerformanceCurve(Type: str,        #type of analysis: 'Surcharge' o
         ResilienceZero = PA
         ResilienceZeroNorm = ResilienceZero / ResilienceZero
         
-        if ResilienceZero == 0:     # if nodeMaxDepth is equal to the respective surcharge depth
+        if Type == "Surcharge" and ResilienceZero == 0:     # if nodeMaxDepth is equal to the respective surcharge depth
             surcharges = (PerformanceNormalizedValues <= 0).any()   
             if surcharges:
-                ResilienceLossNorm = 1
+                ResilienceLoss = ResilienceZero
             else:
-                ResilienceLossNorm = 0
-        else:
-            yModified = (PA - PerformanceNormalizedValues).clip(lower = 0.0, upper = PA)      # get values of Performance when they are <= than PA 
-            ResilienceLoss = trapezoid(yModified, xNormValues)                                # calculate integral between PA and P(t)
+                ResilienceLoss = 0
             ResilienceLossNorm = ResilienceLoss / ResilienceZero                              # normalize between 0 and 1
-            
+        else:                       
+            if (Type == "Flooding" and Window.AllowPonding == False) or (Type == "Flooding" and Window.AllowPonding == True and nodeParameter["FloodingNode"] == False):
+                ResilienceZero = 1
+                ResilienceZeroNorm = 1
+                # Calculate the proportion of time values are equal or lower than the threshold.
+                # Need to subtract MinorThresh/normalizer because the "real" AD is MaxDepth because the node can't flood in SWMM
+                ResilienceLoss = (PerformanceNormalizedValues.values - Window.MinorThresh / normalizer <= 0.0001).sum() / len(PerformanceNormalizedValues.values)    
+                ResilienceLossNorm = ResilienceLoss
+            else:               # "normal cases"
+                yModified = (PA - PerformanceNormalizedValues).clip(lower = 0.0, upper = PA)      # get values of Performance when they are <= than PA 
+                ResilienceLoss = trapezoid(yModified, xNormValues)                                # calculate integral between PA and P(t)
+                ResilienceLossNorm = ResilienceLoss / ResilienceZero                              # normalize between 0 and 1        
+        
         Resilience = ResilienceZero - ResilienceLoss
         ResilienceNorm = Resilience / ResilienceZero
         
@@ -438,7 +465,7 @@ def main(Window: tool_GUI):
         Nodes = FilterAnalysisNodes(Nodes, Window)
     
     # Calculate nodes parameters 
-    NodesParameters = CalculateNodesPararameters(Nodes, Links, CrossSections)
+    NodesParameters = CalculateNodesPararameters(Nodes, Links, CrossSections, Window.AllowPonding)
     
     # Get nodes results from out file
     NodesResults = getNodeResults(NodesParameters, Window)
