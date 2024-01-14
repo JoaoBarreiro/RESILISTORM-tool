@@ -1,5 +1,7 @@
+import winsound
 import pandas as pd
 import numpy as np
+import sys
 import os
 import datetime
 import matplotlib.pyplot as plt
@@ -8,6 +10,148 @@ from scipy.integrate import trapezoid
 from pyswmm import Output, Nodes, Links
 from swmm.toolkit.shared_enum import NodeAttribute
 
+from PySide6.QtWidgets import (QMainWindow, QApplication, QFileDialog, QMessageBox)
+from PySide6.QtCore import Signal
+
+from SWMM_tool_GUI import Ui_MainWindow
+
+class tool_GUI(QMainWindow):
+    Proceed  = Signal()
+    
+    def __init__(self):
+        """
+        Initializes the MainWindow class.
+
+        This function initializes the MainWindow class by calling the constructor of its superclass and setting up the user interface
+
+        """
+        super().__init__()
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.setWindowTitle("SWMM Performance Tool")
+
+        self.ui.RPT_Search.clicked.connect(lambda: self.FindFile(type = "RPT"))
+        self.ui.OUT_Search.clicked.connect(lambda: self.FindFile(type = "OUT"))
+        self.ui.NodeList_Search.clicked.connect(lambda: self.FindFile(type = "NodeList"))
+        
+        self.ui.runButton.clicked.connect(self.verify_inputs)
+        self.ui.closeButton.clicked.connect(self.close)
+            
+    def FindFile(self, type: str):
+        """
+        Finds a file based on the specified type.
+
+        Args:
+            type (str): The type of file to find. Valid values are "RPT", "OUT", and "NodeList".
+
+        Returns:
+            None
+        """
+        
+        if type == "RPT":
+            fileName, _ = QFileDialog.getOpenFileName(self, "Select RPT File", "", "(*.rpt)")       
+            self.ui.RPT_Filepath.setText(fileName)
+            
+            #Get simulation start and end dates and set them in the GUI
+            self.SimulationDates, self.RPT_TimeStep = self.getSimulationDates()
+            
+            
+            self.ui.StartingDate.setDateTime(self.SimulationDates[0])
+            self.ui.StartingDate.setMinimumDateTime(self.SimulationDates[0])
+            self.ui.StartingDate.setMaximumDateTime(self.SimulationDates[1])
+            
+            self.ui.EndDate.setDateTime(self.SimulationDates[1])            
+            self.ui.EndDate.setMinimumDateTime(self.SimulationDates[0])
+            self.ui.EndDate.setMaximumDateTime(self.SimulationDates[1])
+            
+        elif type == "OUT":
+            fileName, _ = QFileDialog.getOpenFileName(self, "Select OUT File", "", "(*.out)")
+            self.ui.OUT_Filepath.setText(fileName)
+        
+        elif type == "NodeList":
+            fileName, _ = QFileDialog.getOpenFileName(self, "Select Node List File", "", "(*.txt)")     
+            self.ui.NodeList_Filepath.setText(fileName)
+    
+    def getSimulationDates(self):
+        """
+        Retrieves the simulation start and end dates from the given report file.
+
+        Parameters:
+        - None
+
+        Returns:
+        - A tuple containing the simulation start date and the simulation end date.
+          The start and end dates are both instances of the datetime.datetime class.
+        """
+        
+        ReportLines = getFileLines(self.ui.RPT_Filepath.text())
+
+        for index, line in enumerate(ReportLines):
+            if "Starting Date" in line:
+                SimulationStartDate = datetime.datetime.strptime(line.split(". ")[1].strip(), "%m/%d/%Y %H:%M:%S")
+            elif "Ending Date" in line:
+                SimulationEndDate = datetime.datetime.strptime(line.split(". ")[1].strip(), "%m/%d/%Y %H:%M:%S")
+            elif "Report Time Step" in line:
+                Report_TimeStep = datetime.datetime.strptime(line.split(". ")[1].strip(), "%H:%M:%S").time()
+                break
+
+        return (SimulationStartDate, SimulationEndDate), Report_TimeStep
+     
+    def verify_inputs(self):
+        self.RPT = self.ui.RPT_Filepath.text()
+        self.OUT = self.ui.OUT_Filepath.text()
+        self.StartingDate = datetime.datetime(self.ui.StartingDate.date().year(),
+                                              self.ui.StartingDate.date().month(),
+                                              self.ui.StartingDate.date().day(),
+                                              self.ui.StartingDate.time().hour(),
+                                              self.ui.StartingDate.time().minute(),
+                                              self.ui.StartingDate.time().second())
+                                               
+        self.EndDate = datetime.datetime(self.ui.EndDate.date().year(),
+                                         self.ui.EndDate.date().month(),
+                                         self.ui.EndDate.date().day(),
+                                         self.ui.EndDate.time().hour(),
+                                         self.ui.EndDate.time().minute(),
+                                         self.ui.EndDate.time().second())
+        
+        self.MinorThresh = self.ui.MinorThreshold.value()
+        
+        if self.RPT == "":
+            QMessageBox.warning(self, "RPT Filepath", "RPT Filepath must be specified!")
+            return False
+        elif os.path.splitext(self.RPT)[1] != ".rpt":
+            QMessageBox.warning(self, "RPT File extension", "RPT File extension must be *.rpt!")
+            return False
+        
+        if self.OUT == "":
+            QMessageBox.warning(self, "OUT Filepath", "OUT Filepath must be specified!")
+            return False
+        elif os.path.splitext(self.OUT)[1] != ".out":
+            QMessageBox.warning(self, "OUT File extension", "OUT File extension must be *.out!")
+            return False
+        
+        if self.ui.StartingDate == self.ui.EndDate:
+            QMessageBox.warning(self, "Analysis period", "Analysis period must be greater than 0!")
+            return False
+
+        if self.ui.logBox.isChecked():
+            self.PrintLog = True
+        else:
+            self.PrintLog = False
+        
+        if self.ui.NodeList_checkBox.isChecked():
+            self.FilterNodes = True
+            if self.ui.NodeList_Filepath.text() == "":
+                #Show message saying "Node List Filepath must be specified!"
+                QMessageBox.warning(self, "Node List Filepath", "Node List Filepath must be specified!")
+                return False
+        else:
+            self.FilterNodes = False
+        
+        self.Proceed.emit()
+    
+    def closeEvent(self, event):
+        self.close()
 
 def getFileLines(FilePath):
     with open(FilePath, "r") as File:
@@ -29,14 +173,14 @@ def GetFromReport(RptFilePath, ReportSection):
     elif ReportSection == "Cross Section Summary":
         output = pd.DataFrame(columns = ["Shape", "FullDepth", "FullArea", "HydRad", "MaxWidth", "NoBarrels", "FullFlow"])
         LinesToData = 5
-    
+
     SectionFound = False
     SectionStart = 0
     
     for index, line in enumerate(ReportLines):      #iterate through report lines
         CleanLine = line.strip()    
         
-        if SectionFound == False and CleanLine == (ReportSection): #verifies if interest section is found
+        if SectionFound == False and CleanLine == ReportSection: #verifies if interest section is found
             SectionFound = True
             SectionStart = index + LinesToData
             
@@ -45,7 +189,7 @@ def GetFromReport(RptFilePath, ReportSection):
                 break
             else:
                 Data = CleanLine.split()
-                if len(Data) == len(output.columns) + 1:        #verifies if data matches the lenght od the table
+                if len(Data) == len(output.columns) + 1:        #verifies if data matches the lenght of the table
                     output.loc[Data[0]] = Data[1:]
                 if len(Data) < len(output.columns) + 1:         #if not, ads Nan to empty fields
                     output.loc[Data[0]] = Data[1:] + [np.nan]*(len(output.columns) + 1 - len(Data))
@@ -61,14 +205,13 @@ def GetFromReport(RptFilePath, ReportSection):
     
     return output
 
-def CalculateNodesResiliencePararameters(Nodes, Links, CrossSections, FloodAdmissibleDepth):
+def CalculateNodesPararameters(Nodes, Links, CrossSections):
 
     #0. Get only nodes of JUNCTION Type
-    NodesResilienceParameters = Nodes[Nodes["Type"] == "JUNCTION"].copy()
+    NodesParameters = Nodes[Nodes["Type"] == "JUNCTION"].copy()
     
     #1. Iterate through each node
-    for nodeID, nodeProp in NodesResilienceParameters.iterrows():
-        NodeMaxDepth = NodesResilienceParameters.loc[nodeID, "MaxDepth"]
+    for nodeID, _ in NodesParameters.iterrows():
         
         #1.1. Find all the links of type CONDUIT connected to the node
         ConnectedLinks = Links.query("(FromNode == @nodeID | ToNode == @nodeID) & Type == 'CONDUIT' ")
@@ -76,11 +219,8 @@ def CalculateNodesResiliencePararameters(Nodes, Links, CrossSections, FloodAdmis
         #1.2. Find the link with the greatest FullFlow linked to the node and respective section maximum height
         MaxFullFlow = 0
         LinkName = "ERRO"
-        #MaxSection = 0
-        #MaxFullDepth = 0
 
         for linkID, linkProp in ConnectedLinks.iterrows():
-            
             FullFlow = CrossSections.loc[linkID, "FullFlow"]
             if FullFlow > MaxFullFlow:
                 LinkName = linkID
@@ -88,281 +228,256 @@ def CalculateNodesResiliencePararameters(Nodes, Links, CrossSections, FloodAdmis
                 MaxFullFlow = CrossSections.loc[linkID, "FullFlow"]
                 
         #1.3. Assign attributes to the node
-        NodesResilienceParameters.loc[nodeID, "LinkName"] = LinkName
-        NodesResilienceParameters.loc[nodeID, "MaxFullDepth"] = MaxFullDepth
-        NodesResilienceParameters.loc[nodeID, "MaxFullFlow"] = MaxFullFlow
-        NodesResilienceParameters.loc[nodeID, "SurchargePA"] = MaxFullDepth  / NodeMaxDepth             #TO UPADTE: Em rigor dever-se ia verificar se exist um offset e somar ao MaxFullDepth para coincidir com a verdadeira cota de coroa
-        NodesResilienceParameters.loc[nodeID, "FloodPA"] = NodeMaxDepth  / (NodeMaxDepth + FloodAdmissibleDepth)
+        NodesParameters.loc[nodeID, "LinkName"] = LinkName
+        NodesParameters.loc[nodeID, "MaxFullDepth"] = MaxFullDepth
+        NodesParameters.loc[nodeID, "MaxFullFlow"] = MaxFullFlow
            
     #4. Calculate each node weight based on the respective linked MaxFullFlow -> W(i) = FullFlow(i) / (Soma(FullFlow(i:n))
-    for nodeID, nodeProp in NodesResilienceParameters.iterrows():
-        NodesResilienceParameters.loc[nodeID, "Weight"] = NodesResilienceParameters.loc[nodeID, "MaxFullFlow"] / NodesResilienceParameters["MaxFullFlow"].sum()
+    for nodeID, _ in NodesParameters.iterrows():
+        NodesParameters.loc[nodeID, "Weight"] = NodesParameters.loc[nodeID, "MaxFullFlow"] / NodesParameters["MaxFullFlow"].sum()
     
-    NodesResilienceParameters = NodesResilienceParameters[["Weight", "MaxFullDepth", "MaxFullFlow", "SurchargePA", "FloodPA"]]
+    NodesParameters = NodesParameters[["LinkName", "MaxDepth", "MaxFullDepth", "MaxFullFlow", "Weight"]]
+    #NodesParameters = NodesParameters[["LinkName", "MaxFullDepth", "MaxFullFlow", "Weight", "SurchargeAdmissibleDepth", "FloodAdmissibleDepth"]]
     
-    #print(NodesResilienceParameters)
-    
-    #print(NodesResilienceParameters["Weight"].sum())
-        
-    return NodesResilienceParameters
+    #print(NodesParameters)
+            
+    return NodesParameters
 
-def getNodeResults(Nodes, OutFilePath):
+def getNodesWithResults(Window: tool_GUI):
+    # Get timeseries from OUT file
+    with Output(Window.OUT) as out:
+        NodesWithResults =  out.nodes.keys()
     
-    #. Get only nodes of JUNCTION Type
-    #Nodes = Nodes[Nodes["Type"] == "JUNCTION"].copy()
-   
-    with Output(OutFilePath) as out:
+    return NodesWithResults    
+
+def FilterAnalysisNodes(Nodes: pd.DataFrame, Window: tool_GUI):
+    AnalysisNodes = getFileLines(Window.ui.NodeList_Filepath.text())
+    
+    AnalysisNodes = [node.strip() for node in AnalysisNodes]
+    
+    Nodes = Nodes[Nodes.index.isin(AnalysisNodes)]
+    return Nodes
+
+def getNodeResults(Nodes: pd.DataFrame, Window: tool_GUI):
+    
+    # Get timeseries from OUT file
+    with Output(Window.OUT) as out:
         NodeResults = pd.DataFrame(index = out.times)
-        Data = {}
-        for nodeID, nodeProp in Nodes.iterrows():
-            node_depths = pd.DataFrame.from_dict(out.node_series(nodeID, NodeAttribute.INVERT_DEPTH, 0), columns = [nodeID], orient = "index")   #attr:`~INVERT_DEPTH`     water depth above invert    
+        
+        for nodeID, _ in Nodes.iterrows():
+            node_depths = pd.DataFrame.from_dict(out.node_series(nodeID, NodeAttribute.INVERT_DEPTH),
+                                                 columns = [nodeID],
+                                                 orient = "index")   #attr:`~INVERT_DEPTH`     water depth above invert    
             NodeResults = pd.concat([NodeResults, node_depths], axis = 1)
-
+   
+    timestep = datetime.timedelta(hours = Window.RPT_TimeStep.hour,
+                                  minutes = Window.RPT_TimeStep.minute,
+                                  seconds = Window.RPT_TimeStep.second)   
+   
+    #Calculate start and end analysis timesteps based on analysis period given by user
+    if Window.StartingDate == Window.SimulationDates[0]:
+        start_date = Window.SimulationDates[0] + timestep   # SWMM does not report time 0, so firt time is start date + timestep
+    else:
+        start_date = Window.StartingDate
+    if Window.EndDate == Window.SimulationDates[1]:
+        end_date = Window.SimulationDates[1] - timestep     # SWMM does not report last time step, so last time is end date - timestep
+    else:
+        end_date = Window.EndDate
+    
+    # filter time series with start_date and end_date
+    NodeResults = NodeResults[(NodeResults.index >= start_date) & (NodeResults.index <= end_date)]
+            
     return NodeResults
 
+def CalculatePerformanceCurve(Type: str,        #type of analysis: 'Surcharge' or 'Flooding'
+                              Window: tool_GUI,
+                              Nodes: pd.DataFrame,
+                              NodesResults: pd.DataFrame,
+                              NodesParameters: pd.DataFrame):
+    
+    AnalysisDuration = Window.EndDate - Window.StartingDate    
+    
+    xValues_Dates = NodesResults.index
+    xValues = (xValues_Dates - xValues_Dates[0]).total_seconds()  # Cumulative time in seconds, starting from zero
+    
+    # Normalize dates between 0 and 1:
+    xNormValues = xValues / xValues.max()              
+    
+    PerformanceCurves = pd.DataFrame(index = xNormValues, columns = NodesParameters.index) 
 
-def CalculateNodesResiliencePerformance(Nodes, NodesResults, NodesResilienceParameters, FloodAdmissibleDepth):
-    
-    PlotCols = 8
-    PlotRows = 10
-    PlotFigure = PlotCols * PlotRows
-    PlotTotal = len(NodesResilienceParameters)
-    
-    NrFigures = PlotTotal // PlotFigure
-    
-    if NrFigures == 0 or NrFigures % PlotTotal != 0:        #VERIFICAR SE NR DE FIGURAS BATE CERTO!
-        NrFigures += 1 
-              
-    xValuesDates = NodesResults.index
-    RainStartTime = xValuesDates[0]                             #TO UPDATE: Get from a file or user input
-    AnalysisDuration = 4 * 2 * 3600                             #Define analysis duration to twice the rainfall duration, in seconds
-    xValuesDates = xValuesDates[(xValuesDates >= RainStartTime) & (xValuesDates <= RainStartTime + datetime.timedelta(seconds=AnalysisDuration))]  #Clip time between the start of rainfal and analysis time. TO UPDATE: Make automatic
-    
-    xValues = (xValuesDates - xValuesDates[0]).total_seconds()  #Cumulative time in seconds, starting from zero
-    xValues = xValues / xValues.max()                           #Normalize dates between 0 and 1
-    
-    Nodes = Nodes.query("Type == 'JUNCTION'").copy()
-    
-    
-    # CALCULATE AND PLOT SURCHARGE RESILIENCE
-    
-    plotCounter = 0
-    for k in range(1, NrFigures+1):
-        fig = plt.figure(k, figsize=(11.69, 8.27))                  #A4 landscape size
-        gs = fig.add_gridspec(nrows = PlotRows, ncols = PlotCols)
-        axs = gs.subplots(sharex = True, sharey = True)
+    for nodeID, nodeParameter in NodesParameters.iterrows():
+        nodeMaxDepth = Nodes.loc[nodeID, "MaxDepth"]      # Node depth (m)
+        
+        if Type == "Surcharge":
+            AD = nodeParameter["MaxFullDepth"]      #AD = Admissile depth
+            normalizer = nodeMaxDepth           #TO UPADTE LATER: Em rigor dever-se ia verificar se exist um offset e somar ao MaxFullDepth para coincidir com a verdadeira cota de coroa
+        elif Type == "Flooding": 
+            AD = nodeParameter["MaxDepth"]
+            normalizer = nodeMaxDepth + Window.MinorThresh
 
-        axs[0,0].set_ylim(-0.1, 1.1)
-        axs[0,0].set_xlim(-0.1, 1.1)
-        #axs[0,0].invert_yaxis()
-               
-        for ax in axs.ravel():
-            if plotCounter ==  PlotTotal: continue
-            
-            nodeID = Nodes.index[plotCounter]
-                              
-            MaxDepth = Nodes.loc[nodeID, "MaxDepth"]
-            
-            PA = 1 - NodesResilienceParameters.loc[nodeID, "SurchargePA"]
-            
-            #normalize depths between 0 and 1
-            yValues = 1 - NodesResults[(NodesResults.index >= RainStartTime) & (NodesResults.index <= RainStartTime + datetime.timedelta(seconds=AnalysisDuration))][nodeID]/ MaxDepth #Clip time between the start of rainfal and analysis time.
-            yValues = yValues.clip(lower = 0.0) #Define minimum possible value as zero (PF)
-
-            #calculate integral between PA and Performance (normalized)
-            yModified = (PA - yValues).clip(lower = 0.0)
-            Integral = trapezoid(yModified, xValues)
-            
-            ResilienceZero = PA
-
-            if ResilienceZero == 0:
-                ResilienceZeroNorm = 1
-                surcharges = (yValues == 0).any()
-                
-                if surcharges:
-                    ResilienceLossNorm = 1
-                else:
-                    ResilienceLossNorm = 0
+        # Set Performance Curve: normalize depths between 0 and 1 by dividing by MaxDepth
+        PerformanceNormalizedValues = (1 - NodesResults[nodeID] / normalizer)      # Allow negative values (i.e. lower than PF = 0) only clip afterwards when calculating the integral
+        PerformanceCurves[nodeID] = PerformanceNormalizedValues.values
+        
+        PA = 1 - AD  / normalizer   
+        ResilienceZero = PA
+        ResilienceZeroNorm = ResilienceZero / ResilienceZero
+        
+        if ResilienceZero == 0:     # if nodeMaxDepth is equal to the respective surcharge depth
+            surcharges = (PerformanceNormalizedValues <= 0).any()   
+            if surcharges:
+                ResilienceLossNorm = 1
             else:
-                Integral = trapezoid(yModified, xValues)
-                
-                ResilienceZeroNorm = ResilienceZero / ResilienceZero
-                
-                ResilienceLoss = Integral
-                ResilienceLossNorm = ResilienceLoss / ResilienceZero
-                
-            Resilience = ResilienceZero - ResilienceLoss
-            ResilienceNorm = Resilience / ResilienceZero
+                ResilienceLossNorm = 0
+        else:
+            yModified = (PA - PerformanceNormalizedValues).clip(lower = 0.0, upper = PA)      # get values of Performance when they are <= than PA 
+            ResilienceLoss = trapezoid(yModified, xNormValues)                                # calculate integral between PA and P(t)
+            ResilienceLossNorm = ResilienceLoss / ResilienceZero                              # normalize between 0 and 1
             
-            NodesResilienceParameters.loc[nodeID, "Surcharge Resilience Zero"] = ResilienceZeroNorm
-            NodesResilienceParameters.loc[nodeID, "Surcharge Resilience Loss"] = ResilienceLossNorm
-            NodesResilienceParameters.loc[nodeID, "Surcharge Resilience"] = ResilienceNorm
-               
-            print(f'{nodeID}: \t\t\t Resilience Zero = {ResilienceZeroNorm:.2f}\t Resilience Loss = {ResilienceLossNorm:.2f}\t Resilience = {ResilienceNorm:.2f}')
-            
-            #Plot graph:
-            ax.plot(xValues, yValues,                          
-                    linewidth = 0.5,                    
-                    color="black",                      
-                    linestyle = "dashed")
-            
-            #Fill value between PA and PF=0
-            filled_poly = ax.fill_between(xValues, yValues, PA, where=(yValues<=PA), color = 'lightsalmon', alpha = 0.6, interpolate = True)
-            
-            #Draw PA Line 
-            ax.axhline(PA, color = 'orange', linewidth = 0.5)
-            
-            ax.set_title(nodeID, fontsize = 8)
-            #ax.xaxis.set_major_locator(mdates.HourLocator(interval = 4))
-            #ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))  
+        Resilience = ResilienceZero - ResilienceLoss
+        ResilienceNorm = Resilience / ResilienceZero
+        
+        NodesParameters.at[nodeID, f"{Type} PA"] = PA
+        NodesParameters.at[nodeID, f"{Type} Resilience Loss"] = ResilienceLossNorm
+        NodesParameters.at[nodeID, f"{Type} Resilience"] = ResilienceNorm
+    
+    return NodesParameters, PerformanceCurves
 
-            #Write the Resilience Loss value in the graph
-            if Integral > 0:
-                #Get the coordinates of the filled_poly and assign text in the mid point
-                (x0, y0), (x1, y1) = filled_poly.get_paths()[0].get_extents().get_points()
-                ax.text(x = (x0 + x1) / 2, y = y1 + 0.05, s = f'{ResilienceLossNorm:.2f}', fontsize = 6, color = 'red')
+def PlotResiliencePerformance(Type: str,        #type of analysis: 'Surcharge' or 'Flooding'
+                              Window: tool_GUI,
+                              NodesParameters: pd.DataFrame,
+                              PerformanceCurve: pd.DataFrame):
+    
+    # Normalize dates between 0 and 1:
+    num_plots = len(NodesParameters)
+    
+    num_columns = 8        #number of columns in one Figure
+    num_rows = 10          #number of rows in one Figure
+    plots_per_figure = num_columns * num_rows       #number of plots in one Figure
+    num_figures = (num_plots - 1) // plots_per_figure + 1   #number of needed Figures
+    
 
-            plotCounter += 1
+    for figure_num in range(num_figures):
+        fig, axes = plt.subplots(nrows = min(num_rows, max(1, num_plots // num_rows)),
+                                 ncols = min(num_columns, num_plots - figure_num * plots_per_figure),
+                                 sharex = True, 
+                                 sharey = True,
+                                 figsize=(11.69, 8.27))
         
         fig.supxlabel("Time")
-        fig.supylabel("Node Surcharge Performance")
-        
-        fig.tight_layout() 
-        
-    plt.show() 
-
-    # CALCULATE AND PLOT FLOODING RESILIENCE
-    
-    plotCounter = 0
-    for k in range(1, NrFigures+1):
-        fig = plt.figure(k, figsize=(11.69, 8.27))                  #A4 landscape size
-        gs = fig.add_gridspec(nrows = PlotRows, ncols = PlotCols)
-        axs = gs.subplots(sharex = True, sharey = True)
-
-        axs[0,0].set_ylim(-0.1, 1.1)
-        axs[0,0].set_xlim(-0.1, 1.1)
-        #axs[0,0].invert_yaxis()
-               
-        for ax in axs.ravel():
-            if plotCounter ==  PlotTotal: continue
-            
-            nodeID = Nodes.index[plotCounter]
-                              
-            MaxDepth = Nodes.loc[nodeID, "MaxDepth"]
-            
-            PA = 1 - NodesResilienceParameters.loc[nodeID, "FloodPA"]
-            
-            #normalize depths between 0 and 1
-            yValues = 1 - NodesResults[(NodesResults.index >= RainStartTime) & (NodesResults.index <= RainStartTime + datetime.timedelta(seconds=AnalysisDuration))][nodeID]/ (MaxDepth + FloodAdmissibleDepth) #Clip time between the start of rainfal and analysis time.
-            yValues = yValues.clip(lower = 0.0) #Define minimum possible value as zero (PF)
-
-            #calculate integral between PA and Performance (normalized)
-            yModified = (PA - yValues).clip(lower = 0.0)
-            Integral = trapezoid(yModified, xValues)
-            
-            ResilienceZero = PA
-
-            if ResilienceZero == 0:
-                ResilienceZeroNorm = 1
-                surcharges = (yValues == 0).any()
+        fig.supylabel(f"Node {Type} Performance")
                 
-                if surcharges:
-                    ResilienceLossNorm = 1
-                else:
-                    ResilienceLossNorm = 0
-            else:
-                Integral = trapezoid(yModified, xValues)
-                
-                ResilienceZeroNorm = ResilienceZero / ResilienceZero
-                
-                ResilienceLoss = Integral
-                ResilienceLossNorm = ResilienceLoss / ResilienceZero
-                
-            Resilience = ResilienceZero - ResilienceLoss
-            ResilienceNorm = Resilience / ResilienceZero
+        for i, (nodeID, nodeProp) in enumerate(NodesParameters.iterrows()):
+            plot_index = figure_num * plots_per_figure + i
+            if plot_index >= num_plots:
+                break
             
-            NodesResilienceParameters.loc[nodeID, "Flood Resilience Zero"] = ResilienceZeroNorm
-            NodesResilienceParameters.loc[nodeID, "Flood Resilience Loss"] = ResilienceLossNorm
-            NodesResilienceParameters.loc[nodeID, "Flood Resilience"] = ResilienceNorm
-               
-            print(f'{nodeID}: \t\t\t Resilience Zero = {ResilienceZeroNorm:.2f}\t Resilience Loss = {ResilienceLossNorm:.2f}\t Resilience = {ResilienceNorm:.2f}')
-            
+            xValues = PerformanceCurve.index
+            yValues = PerformanceCurve[nodeID].values
+            PA = NodesParameters.at[nodeID, f"{Type} PA"]
+            Loss = NodesParameters.at[nodeID, f"{Type} Resilience Loss"]
+                        
             #Plot graph:
-            ax.plot(xValues, yValues,                          
+            axes[i].set_title(nodeID, fontsize = 8)
+            axes[i].set_ylim(-0.1, 1.1)
+            axes[i].set_xlim(-0.1, 1.1)
+            
+            axes[i].plot(xValues, yValues,                          
                     linewidth = 0.5,                    
                     color="black",                      
-                    linestyle = "dashed")
+                    linestyle = "solid")
+                       
+            #Fill Resilience Loss
+            filled_poly = axes[i].fill_between(xValues, np.maximum(yValues, 0), PA, where = yValues <= PA, color = 'lightsalmon', alpha = 0.6, interpolate = True)
             
-            #Fill value between PA and PF=0
-            filled_poly = ax.fill_between(xValues, yValues, PA, where=(yValues<=PA), color = 'lightsalmon', alpha = 0.6, interpolate = True)
+            axes[i].fill_between(xValues, np.minimum(yValues, 0), 0, where=(yValues < 0), color='red', alpha=0.6, interpolate=True)
+            
             
             #Draw PA Line 
-            ax.axhline(PA, color = 'orange', linewidth = 0.5)
+            axes[i].axhline(PA, color = 'orange', linewidth = 0.5)
             
-            ax.set_title(nodeID, fontsize = 8)
-            #ax.xaxis.set_major_locator(mdates.HourLocator(interval = 4))
-            #ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))  
-
+            #Dray y = 0 Line
+            axes[i].axhline(0, color = 'black', linewidth = 0.5, linestyle = "dashed")
+            
+            
             #Write the Resilience Loss value in the graph
-            if Integral > 0:
-                #Get the coordinates of the filled_poly and assign text in the mid point
-                (x0, y0), (x1, y1) = filled_poly.get_paths()[0].get_extents().get_points()
-                ax.text(x = (x0 + x1) / 2, y = y1 + 0.05, s = f'{ResilienceLossNorm:.2f}', fontsize = 6, color = 'red')
-
-            plotCounter += 1
+            # if Loss > 0:
+            #Get the coordinates of the filled_poly and assign text in the mid point
+                #(x0, y0), (x1, y1) = filled_poly.get_paths()[0].get_extents().get_points()
+            
+            axes[i].annotate(f'R = {1-Loss:.2f}', xy=(1.1, 1.1), xytext=(-1, -1), textcoords='offset points', fontsize=6, color='green', ha='right', va='top')
+            axes[i].annotate(r'$R_L$' + f' = {Loss:.2f}', xy=(1.1, -0.1), xytext=(-1, 1), textcoords='offset points', fontsize=6, color='red', ha='right', va='bottom')
         
         fig.supxlabel("Time")
-        fig.supylabel("Node Flood Performance")
+        fig.supylabel(f"Node {Type} Performance")
+
+        fig.tight_layout()        
+        fig.show()
+
+def main(Window: tool_GUI):
         
-        fig.tight_layout() 
+    Window.ui.textEdit.clear()   
+    
+    # Get nodes with output results (reported nodes in SWMM)
+    NodesWithResults = getNodesWithResults(Window) 
+
+    # Get data from RPT file -> all elements of the simulation
+    Nodes = GetFromReport(Window.RPT, "Node Summary")
+    Links = GetFromReport(Window.RPT, "Link Summary")
+    CrossSections = GetFromReport(Window.RPT, "Cross Section Summary")
+    
+    # print(Nodes)
+    # print(Links)
+    # print(CrossSections)
+    
+    # Filter Nodes with NodesWithResults
+    Nodes = Nodes[Nodes.index.isin(NodesWithResults)]
         
-    plt.show() 
+    # Filter Nodes with Node Analysis List, if necessary
+    if Window.FilterNodes:
+        Nodes = FilterAnalysisNodes(Nodes, Window)
     
+    # Calculate nodes parameters 
+    NodesParameters = CalculateNodesPararameters(Nodes, Links, CrossSections)
     
+    # Get nodes results from out file
+    NodesResults = getNodeResults(NodesParameters, Window)
     
-    return NodesResilienceParameters
-
-def main():
+    # Calculate resilience performance curves
+    NodesParameters, SurchargePerforamnceCurves = CalculatePerformanceCurve("Surcharge", Window, Nodes, NodesResults, NodesParameters)
+    NodesParameters, FloodingPerforamnceCurves = CalculatePerformanceCurve("Flooding", Window, Nodes, NodesResults, NodesParameters)
     
-    #InpFilePath = r"I:\O meu disco\PhD\Tese\REFUSS\SWMM_SCRIPT\TESTESWMM.inp"
-    RptFilePath = r"I:\O meu disco\PhD\Tese\REFUSS\SWMM_SCRIPT\TESTESWMM.rpt"
-    OutFilePath = r"I:\O meu disco\PhD\Tese\REFUSS\SWMM_SCRIPT\TESTESWMM.out"
-    
-    Start_Date = datetime.datetime(2023, 6, 28, 0, 0, 0)
-    End_Date = datetime.datetime(2023, 6, 28, 6, 0, 0)
-
-    FloodAdmissibleDepth = (0.2, 0.7) #Max. admissible flood depth to assign Failure Performance [m] on minor [0] and major system [1]
-    
-    
-    Nodes = GetFromReport(RptFilePath, "Node Summary")
-    Links = GetFromReport(RptFilePath, "Link Summary")
-    CrossSections = GetFromReport(RptFilePath, "Cross Section Summary")
-
-    #print(Nodes)
-    #print(Links)
-    #print(CrossSections)
-    
-    
-    NodesResilienceParameters = CalculateNodesResiliencePararameters(Nodes, Links, CrossSections, FloodAdmissibleDepth[0])
-    
-    NodesResults = getNodeResults(NodesResilienceParameters, OutFilePath)
-    
-    NodesResilienceParameters = CalculateNodesResiliencePerformance(Nodes, NodesResults, NodesResilienceParameters, FloodAdmissibleDepth[0])   
+    # Plot resilience performance curves
+    PlotResiliencePerformance("Surcharge", Window, NodesParameters, SurchargePerforamnceCurves)   
+    PlotResiliencePerformance("Flooding", Window, NodesParameters, FloodingPerforamnceCurves)
      
-    SystemSurchargeResilience = (NodesResilienceParameters["Surcharge Resilience"] * NodesResilienceParameters["Weight"]).sum()
-    SystemFloodResilience = (NodesResilienceParameters["Flood Resilience"] * NodesResilienceParameters["Weight"]).sum()
-      
-    print(NodesResilienceParameters[["Surcharge Resilience Zero", "Surcharge Resilience Loss", "Surcharge Resilience", "Weight"]])
-    print(NodesResilienceParameters[["Flood Resilience Zero", "Flood Resilience Loss", "Flood Resilience", "Weight"]])
+    # Calculate system resilience
+    SystemSurchargeResilience = (NodesParameters["Surcharge Resilience"] * NodesParameters["Weight"]).sum()
+    SystemFloodResilience = (NodesParameters["Flooding Resilience"] * NodesParameters["Weight"]).sum()
     
-    print("\n \n")
-    print(f'********** System Surcharge Resilience = {SystemSurchargeResilience:.3f} **********')
-    print(f'********** System Flood Resilience = {SystemFloodResilience:.3f} **************')
-    print("\n \n")
+    # Print nodes resilience in terminal
+    print(NodesParameters[["Weight", "Surcharge Resilience Loss", "Surcharge Resilience", "Flooding Resilience Loss", "Flooding Resilience"]])
+    
+    # Print system resilience in GUI log
+    GUI.ui.textEdit.append(f'Successfull run!')
+    GUI.ui.textEdit.append(f'Minor system Surcharge Resilience = {SystemSurchargeResilience:.3f}')
+    GUI.ui.textEdit.append(f'Minor system Flooding Resilience = {SystemFloodResilience:.3f}')
+    
+    # Print system resilience in terminal
+    print("\n")
+    print(f'********** Minor system Surcharge Resilience = {SystemSurchargeResilience:.3f} **********')
+    print(f'********** Minor system Surcharge Resilience = {SystemFloodResilience:.3f} **************')
+    print("\n")
     
     return
 
 if __name__ == "__main__":
-	main()
- 
-	os.system("pause")
+    
+    app = QApplication(sys.argv)
+    
+    GUI = tool_GUI()
+    GUI.Proceed.connect(lambda: main(GUI))
+    
+    GUI.show()
+        
+    sys.exit(app.exec())

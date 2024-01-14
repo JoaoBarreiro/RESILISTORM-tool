@@ -23,10 +23,10 @@ DRY_DAYS             2
 REPORT_STEP          00:02:00
 WET_STEP             00:02:00
 DRY_STEP             00:02:00
-ROUTING_STEP         0:00:05 
+ROUTING_STEP         0:00:01 
 RULE_STEP            00:00:00
 
-INERTIAL_DAMPING     PARTIAL
+INERTIAL_DAMPING     NONE
 NORMAL_FLOW_LIMITED  BOTH
 FORCE_MAIN_EQUATION  H-W
 VARIABLE_STEP        0.75
@@ -37,7 +37,7 @@ HEAD_TOLERANCE       0.0015
 SYS_FLOW_TOL         5
 LAT_FLOW_TOL         5
 MINIMUM_STEP         0.5
-THREADS              1
+THREADS              16
 
 [EVAPORATION]
 ;;Data Source    Parameters
@@ -93,10 +93,14 @@ INPUT      YES
 CONTROLS   YES
 AVERAGES   YES
 SUBCATCHMENTS ALL
-NODES ALL
+NODES 1 2 4
 LINKS ALL
 
 [TAGS]
+Node       1                _report         
+Node       2                _report         
+Node       3                _report         
+Node       4                _report         
 
 [MAP]
 DIMENSIONS 0.000 0.000 10000.000 10000.000
