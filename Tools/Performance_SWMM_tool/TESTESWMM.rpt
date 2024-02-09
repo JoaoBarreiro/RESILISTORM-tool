@@ -20,7 +20,7 @@
                                            Invert      Max.    Ponded    External
   Name                 Type                 Elev.     Depth      Area    Inflow  
   -------------------------------------------------------------------------------
-  1                    JUNCTION              5.00      1.00       0.0    Yes
+  1                    JUNCTION              5.00      1.00       0.3    Yes
   2                    JUNCTION              4.70      1.00       0.4
   3                    JUNCTION              4.50      1.00       0.4
   4                    JUNCTION              4.30      1.00       0.4
@@ -95,13 +95,13 @@
   Groundwater Inflow .......         0.000         0.000
   RDII Inflow ..............         0.000         0.000
   External Inflow ..........         0.183         1.829
-  External Outflow .........         0.153         1.533
-  Flooding Loss ............         0.028         0.277
+  External Outflow .........         0.181         1.810
+  Flooding Loss ............         0.000         0.000
   Evaporation Loss .........         0.000         0.000
   Exfiltration Loss ........         0.000         0.000
   Initial Stored Volume ....         0.000         0.004
   Final Stored Volume ......         0.002         0.021
-  Continuity Error (%) .....         0.039
+  Continuity Error (%) .....         0.042
   
   
   ***************************
@@ -119,12 +119,12 @@
   *************************
   Routing Time Step Summary
   *************************
-  Minimum Time Step           :     0.58 sec
+  Minimum Time Step           :     0.55 sec
   Average Time Step           :     1.00 sec
   Maximum Time Step           :     1.00 sec
   Percent in Steady State     :     0.00
   Average Iterations per Step :     2.00
-  Percent Not Converging      :     0.01
+  Percent Not Converging      :     0.03
   Time Step Frequencies       :
       1.000 -  0.871 sec      :   100.00 %
       0.871 -  0.758 sec      :     0.00 %
@@ -142,10 +142,10 @@
                                    Depth    Depth      HGL   Occurrence   Max Depth
   Node                 Type       Meters   Meters   Meters  days hr:min      Meters
   ---------------------------------------------------------------------------------
-  1                    JUNCTION     0.25     1.00     6.00     0  01:27        1.00
-  2                    JUNCTION     0.20     0.50     5.20     0  01:27        0.50
-  3                    JUNCTION     0.36     0.53     5.03     0  01:27        0.53
-  4                    JUNCTION     0.54     1.00     5.30     0  00:03        0.67
+  1                    JUNCTION     0.40     2.07     7.07     0  02:37        2.07
+  2                    JUNCTION     0.25     0.85     5.55     0  02:37        0.85
+  3                    JUNCTION     0.38     0.73     5.23     0  02:37        0.73
+  4                    JUNCTION     0.56     1.00     5.30     0  00:03        0.83
   5                    OUTFALL      0.60     0.60     4.80     0  00:00        0.60
   
   
@@ -160,10 +160,10 @@
   Node                 Type           CMS      CMS  days hr:min    10^6 ltr    10^6 ltr     Percent
   -------------------------------------------------------------------------------------------------
   1                    JUNCTION     0.200    0.200     0  02:00         1.8         1.8      -0.004
-  2                    JUNCTION     0.000    0.145     0  01:28           0        1.53       0.100
-  3                    JUNCTION     0.000    0.145     0  01:28           0        1.55       0.444
-  4                    JUNCTION     0.000    0.158     0  00:01           0        1.56       0.652
-  5                    OUTFALL      0.000    0.158     0  00:01           0        1.56       0.000
+  2                    JUNCTION     0.000    0.200     0  02:37           0        1.81       0.085
+  3                    JUNCTION     0.000    0.200     0  02:37           0        1.82       0.379
+  4                    JUNCTION     0.000    0.200     0  02:37           0        1.84       0.553
+  5                    OUTFALL      0.000    0.200     0  02:37           0        1.84       0.000
   
   
   **********************
@@ -176,10 +176,10 @@
                                    Hours       Above Crown    Below Rim
   Node                 Type      Surcharged         Meters       Meters
   ---------------------------------------------------------------------
-  1                    JUNCTION        2.55          0.700        0.000
-  2                    JUNCTION        2.06          0.100        0.500
-  3                    JUNCTION        1.94          0.027        0.473
-  4                    JUNCTION        6.95          0.501        0.000
+  1                    JUNCTION        2.55          1.772        0.000
+  2                    JUNCTION        2.06          0.454        0.146
+  3                    JUNCTION        1.93          0.227        0.273
+  4                    JUNCTION        6.96          0.501        0.000
   
   
   *********************
@@ -193,7 +193,7 @@
                         Hours       Rate    Occurrence      Volume     Depth
   Node                 Flooded       CMS   days hr:min    10^6 ltr    Meters
   --------------------------------------------------------------------------
-  1                       1.82     0.055      0  02:00       0.277     0.000
+  1                       1.84     0.002      0  02:00       0.004     1.072
   4                       0.01     0.021      0  00:03       0.000     0.001
   
   
@@ -206,9 +206,9 @@
                          Freq      Flow      Flow      Volume
   Outfall Node           Pcnt       CMS       CMS    10^6 ltr
   -----------------------------------------------------------
-  5                     98.76     0.044     0.158       1.562
+  5                     98.76     0.052     0.200       1.839
   -----------------------------------------------------------
-  System                98.76     0.044     0.158       1.562
+  System                98.76     0.052     0.200       1.839
   
   
   ********************
@@ -220,10 +220,10 @@
                                   |Flow|   Occurrence   |Veloc|    Full    Full
   Link                 Type          CMS  days hr:min     m/sec    Flow   Depth
   -----------------------------------------------------------------------------
-  1                    CONDUIT     0.145     0  01:28      2.06    1.63    1.00
-  2                    CONDUIT     0.145     0  01:28      1.16    0.93    1.00
-  3                    CONDUIT     0.145     0  01:27      0.84    0.51    1.00
-  4                    CONDUIT     0.158     0  00:01      1.33    1.43    1.00
+  1                    CONDUIT     0.200     0  02:37      2.83    2.25    1.00
+  2                    CONDUIT     0.200     0  02:37      1.59    1.28    1.00
+  3                    CONDUIT     0.200     0  02:37      1.02    0.71    1.00
+  4                    CONDUIT     0.200     0  02:37      1.59    1.81    1.00
   
   
   ***************************
@@ -251,11 +251,11 @@
   Conduit                Both Ends  Upstream  Dnstream   Normal Flow   Limited
   ----------------------------------------------------------------------------
   1                           2.32      2.55      2.32      2.67         2.32
-  2                           2.06      2.06      2.50      0.01         0.01
-  3                           1.94      1.94      6.88      0.01         0.01
+  2                           2.06      2.06      2.50      1.66         1.66
+  3                           1.93      1.93      6.89      0.01         0.01
   4                           9.98      9.98     10.00      2.36         2.34
   
 
-  Analysis begun on:  Sun Jan 14 22:01:18 2024
-  Analysis ended on:  Sun Jan 14 22:01:18 2024
+  Analysis begun on:  Sun Jan 21 17:11:20 2024
+  Analysis ended on:  Sun Jan 21 17:11:20 2024
   Total elapsed time: < 1 sec

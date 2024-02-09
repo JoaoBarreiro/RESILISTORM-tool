@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'MainPage_V7DRkVHD.ui'
+## Form generated from reading UI file 'MainPage_V7ThooHr.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -2595,8 +2595,8 @@ class Ui_MainWindow(object):
 "li.checked::marker { content: \"\\2612\"; }\n"
 "</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt; font-weight:700;\">RESILIENCE RATING</span></p></body></html>", None))
-        self.OFR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">FUNCTIONAL RATING</span></p></body></html>", None))
-        self.OPR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">PERFORMANCE RATING</span></p></body></html>", None))
+        self.OFR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">STRATEGIC DIMENSION</span></p></body></html>", None))
+        self.OPR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">PERFORANCE DIMENSION</span></p></body></html>", None))
         self.ORR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">URBAN STORMWATER RESILIENCE INDEX</span></p></body></html>", None))
         self.Overall_Label_3.setText(QCoreApplication.translate("MainWindow", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"

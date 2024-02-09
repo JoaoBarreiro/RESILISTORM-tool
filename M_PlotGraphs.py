@@ -1,5 +1,6 @@
 import M_GraphClasses
 
+import numpy as np
 import pandas as pd
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
@@ -123,7 +124,7 @@ def plotResilienceCircle(DataFrame, DestinyWidget: QWidget):
         if layout.itemAt(0):
             layout.itemAt(0).widget().deleteLater()
                 
-    if DataFrame != 0:
+    if DataFrame != 0 and not np.isnan(DataFrame):
         if isinstance(DataFrame, pd.DataFrame):
             Res_plotter = M_GraphClasses.CircularGraphWidget(
                 data = DataFrame.loc['1', ["Rating", "Space","Missing"]],

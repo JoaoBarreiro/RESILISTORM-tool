@@ -807,7 +807,7 @@ class MainWindow(QMainWindow):
                 metric_block.metric_comment.setEnabled(False)                
                 for index, item in enumerate(options_layout):
                     item.setEnabled(False)
-                    if metric_block.answer_type == ("Single choice" or "Multiple choice"):
+                    if metric_block.answer_type == "Single choice" or metric_block.answer_type == "Multiple choice":
                         item.setChecked(False)
                     elif metric_block.answer_type == "Open":
                         item.setText('')
@@ -840,7 +840,7 @@ class MainWindow(QMainWindow):
                     if metric_block.answer_type == "Open":
                         item.setEnabled(True)
                         item.setText(answer)
-                    elif metric_block.answer_type == ("Single choice" or "Multiple choice"):
+                    elif metric_block.answer_type == "Single choice" or metric_block.answer_type == "Multiple choice":
                         if index in answer:
                             item.setChecked(True)
                         else:

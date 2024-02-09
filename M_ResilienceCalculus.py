@@ -62,8 +62,8 @@ def Calculate_SystemPerformanceRating(
                         answer = query.value(0)
                     if answer:
                         answer = float(answer)
-                    if answer is None:
-                        answer = 0
+                    elif answer is None or answer == '':
+                        answer = np.nan
                     SPR_Answers.at[rainfall, indicatorID] = answer
                 else:
                     print(f"Error in query at Calculate_SystemPerformanceRating: {AnswersDatabase.lastError().text()}")
@@ -72,7 +72,7 @@ def Calculate_SystemPerformanceRating(
     
     SPR_filtered = SPR_Answers.loc[:, common_indices]
     
-    SPR_filtered["Average"] = SPR_filtered.mean(axis=1)
+    SPR_filtered["Average"] = SPR_filtered.mean(axis=1, skipna=True)
    
     return SPR_filtered
 
@@ -96,7 +96,7 @@ def Caculate_ConsequencesRating(
     
     SCR_Answers = pd.DataFrame(index = Situation.rainfall, columns = Consequences_indicators)
  
-    for ind_id, ind_prop in ConsequencesIndicatorsSetup.iterrows():
+    for ind_id, ind_prop in (ConsequencesIndicatorsSetup[ConsequencesIndicatorsSetup["SelectedState"]==1]).iterrows():
         
         ind_ans = fetch_table_from_database(AnswersDatabase, f"{ind_id}")
         ind_ans.set_index("RainfallID", inplace=True)  

@@ -445,20 +445,21 @@ class CircularGraphWidget(QWidget):
         # Create the filled part of the circular bar
         left = 0
         for i, data in enumerate(self.data):
-            if i == 0:
-                z_order = 2
-                edge_color = '#34495E'
-            else:
-                z_order = 1
-                edge_color = 'none'
-            wedge_filled = patches.Wedge(center = (0, 0), r = self.WedgeRadius, 
-                                         theta1 = left, theta2 = left + 360 * data,
-                                         width = self.WedgeWidth, facecolor = self.colors[i],
-                                         zorder = z_order, edgecolor = edge_color, linewidth = 1)
-            left += 360 * data
-            self.ax.add_patch(wedge_filled)
-            if i == 0:
-                self.wedge_filled = wedge_filled           
+            if not np.isnan(data):
+                if i == 0:
+                    z_order = 2
+                    edge_color = '#34495E'
+                else:
+                    z_order = 1
+                    edge_color = 'none'
+                wedge_filled = patches.Wedge(center = (0, 0), r = self.WedgeRadius, 
+                                            theta1 = left, theta2 = left + 360 * data,
+                                            width = self.WedgeWidth, facecolor = self.colors[i],
+                                            zorder = z_order, edgecolor = edge_color, linewidth = 1)
+                left += 360 * data
+                self.ax.add_patch(wedge_filled)
+                if i == 0:
+                    self.wedge_filled = wedge_filled           
 
         # Create a new axes for the text label
         self.text_ax = self.fig.add_axes([0, 0, 1, 1], zorder=1)
