@@ -1000,7 +1000,7 @@ def main(Window: tool_GUI):
     print("\n\n\n START")
     print(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
     
-    #critical_nodes = get_critical_nodes(r"C:\Users\joaop\OneDrive\Documentos\TESE_JL_BASEMENT_SIG\CRITICAL_NODES.txt")
+    #critical_nodes = get_critical_nodes(r"CRITICAL_NODES.txt")
     
     Mesh_faces, Mesh_nodes, Mesh_faces_area, Mesh_faces_centroids = read_2dm(Window.MeshFile)
     # Mesh_vertices_idw = calcualte_vertices_idw_weights(Mesh_faces, Mesh_faces_centroids, Mesh_nodes)
@@ -1036,6 +1036,7 @@ def main(Window: tool_GUI):
     base_name, extension = os.path.splitext(os.path.basename(Window.DepthFile))
     path = os.path.dirname(Window.DepthFile)
 
+    """ DEBUG IF FILE IS READ CORRECTLY
     datasets_to_write = [
         {"name": "my_Depth", "data_series": nodes_depth_series, "timestamps" : timestamps}            
     ]
@@ -1045,7 +1046,7 @@ def main(Window: tool_GUI):
     write_DAT_file(Mesh_nodes,
                     Mesh_faces,
                     datasets_to_write,
-                    filepath = writing_path)
+                    filepath = writing_path)"""
 
 
     ''' 
@@ -1070,7 +1071,6 @@ def main(Window: tool_GUI):
     # max_momentum_index = np.argmax(centroids_momentum_series, axis=0)
     # #get the respecrive node depth at that index
     # max_momentum_depth = centroids_depth_series[max_momentum_index]
-
 
     
     #get the depth file name , wihtout path

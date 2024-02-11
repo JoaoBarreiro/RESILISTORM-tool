@@ -736,48 +736,7 @@ def PlotSystemPerformance(Types: list,
     
     plt.tight_layout()  
     plt.show()  
-    
-"""def PlotNodesWeightVsNodesResilience(Types: list, _ OLD
-                                     NodesParameters: pd.DataFrame,
-                                     NodesResilience: Dict[str, pd.DataFrame],
-                                     SystemResilience: dict):
-    #PLOT FIGURE OF NODES WEIGHT VS RESILIENCE 
-    
-    #order all used dataframes by index to be sure that they are in the same order and scatters are correct
-    NodesParameters = NodesParameters.sort_index()
-    for dataframe in NodesResilience:
-        NodesResilience[dataframe] = NodesResilience[dataframe].sort_index()
-    
-    xmax = max(NodesParameters['Weight'])*(1.05)
-    
-    fig, axes = plt.subplots(ncols = len(Types),
-                             nrows = 1,
-                             sharex = False, 
-                             sharey = True)
-    
-    axes = axes.flatten()  # Flatten the NumPy array of axes
-    
-    for i, Type in enumerate(Types):
-        axes[i].scatter(NodesParameters['Weight'], NodesResilience[Type]['Resilience'], marker='x', s = 10, linewidths=0.5)
-        axes[i].set_xlabel('Node Weight')
-        axes[i].set_ylabel(f'Node {Type} Resilience')
-        
-        SR = SystemResilience[Type]["Resilience"]
-        axes[i].axhline(SR, color = 'green', linewidth = 1)
-        axes[i].annotate(f'R = {SR:.3f}', xy=(xmax, SR), xytext=(-1, -2), textcoords='offset points', fontsize=8, color='green', ha='right', va='top')
-        axes[i].axhline(1, color = 'black', linewidth = 0.5, linestyle = "dashed")
-        axes[i].axhline(0, color = 'black', linewidth = 0.5, linestyle = "dashed")
-        # Set axis limits
-        axes[i].set_xlim(0, xmax)
-        axes[i].set_ylim(-0.1, 1.1)
-    
-    # Adjust layout
-    fig.tight_layout()
-    
-    # Show the plot
-    plt.tight_layout()
-    plt.show()"""
- 
+     
 def cm_to_inches(cm):
     return cm / 2.54  # Converte centímetros para polegadas
    

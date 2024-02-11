@@ -17,7 +17,7 @@ from swmm.toolkit.shared_enum import NodeAttribute
 from PySide6.QtWidgets import (QMainWindow, QApplication, QFileDialog, QMessageBox)
 from PySide6.QtCore import Signal
 
-from SWMM_tool_GUI import Ui_MainWindow
+from Tools.Performance_SWMM_tool._Old.SWMM_tool_GUI import Ui_MainWindow
 
 class tool_GUI(QMainWindow):
     Proceed  = Signal()
