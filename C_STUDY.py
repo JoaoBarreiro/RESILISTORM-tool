@@ -43,7 +43,7 @@ class STUDY():
         self.Weights: pd.DataFrame = None
         self.Selected_indicators: pd.DataFrame = None
         
-        # Automatically initialize the methodology and database paths
+        # Automatically initialize the self.Methodology_path and self.Database_path
         self.set_files_and_paths(WelcomeDialog)
 
         M_OperateDatabases.establishDatabaseConnections([(self.Methodology_db, self.Methodology_path),

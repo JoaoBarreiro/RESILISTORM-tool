@@ -504,7 +504,7 @@ def CalculateNodesResilience(Types: list,        #type of analysis: 'Surcharge' 
             ResilienceZero = PA
             
             """if resiliencezero == 0 or np.isnan(resiliencezero) or np.isinf(resiliencezero):
-                print(f"\nalert node resilience zero - {nodeid}")
+                print(f"\n alert node resilience zero - {nodeid}")
                 pass"""
             
             Threshold = 0.0001
@@ -552,8 +552,8 @@ def CalculateNodesResilience(Types: list,        #type of analysis: 'Surcharge' 
                 NodesResilience[Type].at[nodeID, f"ResilienceBeforeFlood"] = ResilienceNorm
                 NodesResilience[Type].at[nodeID, f"Resilience"] = ResilienceNorm * (1 - Flooding_VolumeRatio)
                 
-                #get the nodes where Resilience is lower than 1:
-                BadNodes = NodesResilience[Type][NodesResilience[Type]["Resilience"] < 1]
+                #get the nodes where Resilience is lower than 1, i.e, flooding nodes:
+                BadNodes = NodesResilience[Type][NodesResilience[Type]["Resilience"] < 0.99990]
 
             NodesResilience[Type].at[nodeID, "Worst Performance"] = min((PerformanceNormalizedValues).clip(lower = 0, upper = 1).values)
                                      
@@ -606,14 +606,21 @@ def PlotNodesPerformance(Types: str,        #type of analysis: 'Surcharge' or 'F
     
     #PLOT SHEETS OF NODES PERFORMANCE
     num_plots = len(NodesParameters)
-    num_columns = 8        #number of columns in one Figure
+    num_columns = 5        #number of columns in one Figure
     num_rows = 10          #number of rows in one Figure
     plots_per_figure = num_columns * num_rows       #number of plots in one Figure
     num_figures = (num_plots - 1) // plots_per_figure + 1   #number of needed Figures
     
     #Order NodesParameters in descending order of Weight
-    OrderedNodesParameters = NodesParameters.sort_values(by = "Weight", ascending = False)
-    for Type in Types:        
+    #OrderedOrderedNodesParameters = NodesParameters.sort_values(by = "Weight", ascending = False)
+
+    # OrderedNodesResilience = NodesResilience[Type].sort_values(by = "Resilience Loss", ascending = False)
+    # OrderedNodesResilience = OrderedNodesResilience.join(NodesParameters["Weight"])
+    
+    for Type in Types:
+        OrderedNodesResilience = NodesResilience[Type].sort_values(by = "Resilience Loss", ascending = False)
+        OrderedNodesResilience = OrderedNodesResilience.join(NodesParameters["Weight"])               
+        
         for figure_num in range(num_figures):
             fig, axes = plt.subplots(nrows = min(num_rows, max(1, num_plots // num_rows)),
                                     ncols = min(num_columns, num_plots - figure_num * plots_per_figure),
@@ -626,7 +633,7 @@ def PlotNodesPerformance(Types: str,        #type of analysis: 'Surcharge' or 'F
             start_index = figure_num * plots_per_figure
             end_index = min(num_plots, (figure_num + 1) * plots_per_figure)
             
-            for i, (nodeID, nodeProp) in enumerate(OrderedNodesParameters.iloc[start_index:end_index].iterrows()):
+            for i, (nodeID, nodeProp) in enumerate(OrderedNodesResilience.iloc[start_index:end_index].iterrows()):
                 # plot_index = figure_num * plots_per_figure + i
                 # if plot_index >= num_plots:
                 #     break
