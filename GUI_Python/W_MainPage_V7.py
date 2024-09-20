@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'MainPage_V7ThooHr.ui'
+## Form generated from reading UI file 'MainPage_V7rUfOGq.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -17,20 +17,21 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractScrollArea, QApplication, QCheckBox,
-    QComboBox, QFormLayout, QFrame, QHBoxLayout,
-    QHeaderView, QLabel, QLayout, QLineEdit,
-    QMainWindow, QMenu, QMenuBar, QPushButton,
-    QScrollArea, QSizePolicy, QSpacerItem, QStackedWidget,
-    QTabWidget, QTableWidget, QTableWidgetItem, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget)
+    QComboBox, QFormLayout, QFrame, QGridLayout,
+    QHBoxLayout, QHeaderView, QLabel, QLayout,
+    QLineEdit, QMainWindow, QMenu, QMenuBar,
+    QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
+    QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 import GUI_Python.resources_rc
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.setWindowModality(Qt.ApplicationModal)
-        MainWindow.resize(1284, 720)
+        MainWindow.resize(1280, 720)
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -908,24 +909,24 @@ class Ui_MainWindow(object):
 
         self.Domain_Form.setWidget(3, QFormLayout.LabelRole, self.Country_Label)
 
-        self.Country__LineEdit = QLineEdit(self.widget_34)
-        self.Country__LineEdit.setObjectName(u"Country__LineEdit")
-        self.Country__LineEdit.setStyleSheet(u"background-color: white")
-        self.Country__LineEdit.setAlignment(Qt.AlignCenter)
+        self.Country_LineEdit = QLineEdit(self.widget_34)
+        self.Country_LineEdit.setObjectName(u"Country_LineEdit")
+        self.Country_LineEdit.setStyleSheet(u"background-color: white")
+        self.Country_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Domain_Form.setWidget(3, QFormLayout.FieldRole, self.Country__LineEdit)
+        self.Domain_Form.setWidget(3, QFormLayout.FieldRole, self.Country_LineEdit)
 
         self.City_Label = QLabel(self.widget_34)
         self.City_Label.setObjectName(u"City_Label")
 
         self.Domain_Form.setWidget(4, QFormLayout.LabelRole, self.City_Label)
 
-        self.City__LineEdit = QLineEdit(self.widget_34)
-        self.City__LineEdit.setObjectName(u"City__LineEdit")
-        self.City__LineEdit.setStyleSheet(u"background-color: white")
-        self.City__LineEdit.setAlignment(Qt.AlignCenter)
+        self.City_LineEdit = QLineEdit(self.widget_34)
+        self.City_LineEdit.setObjectName(u"City_LineEdit")
+        self.City_LineEdit.setStyleSheet(u"background-color: white")
+        self.City_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Domain_Form.setWidget(4, QFormLayout.FieldRole, self.City__LineEdit)
+        self.Domain_Form.setWidget(4, QFormLayout.FieldRole, self.City_LineEdit)
 
         self.Cat_Label = QLabel(self.widget_34)
         self.Cat_Label.setObjectName(u"Cat_Label")
@@ -1050,52 +1051,44 @@ class Ui_MainWindow(object):
         self.horizontalLayout_8.setSpacing(5)
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.horizontalLayout_8.setContentsMargins(1, 1, 1, 1)
-        self.GenderPlot_Widget = QWidget(self.GenderContent_Widget)
-        self.GenderPlot_Widget.setObjectName(u"GenderPlot_Widget")
+        self.gridLayout_2 = QGridLayout()
+        self.gridLayout_2.setObjectName(u"gridLayout_2")
+        self.Female_Label = QLabel(self.GenderContent_Widget)
+        self.Female_Label.setObjectName(u"Female_Label")
 
-        self.horizontalLayout_8.addWidget(self.GenderPlot_Widget)
+        self.gridLayout_2.addWidget(self.Female_Label, 1, 0, 1, 1)
 
-        self.Gender_Form = QFormLayout()
-        self.Gender_Form.setObjectName(u"Gender_Form")
-        self.Gender_Form.setFormAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
-        self.Male_Label = QLabel(self.GenderContent_Widget)
-        self.Male_Label.setObjectName(u"Male_Label")
+        self.label_10 = QLabel(self.GenderContent_Widget)
+        self.label_10.setObjectName(u"label_10")
 
-        self.Gender_Form.setWidget(0, QFormLayout.LabelRole, self.Male_Label)
+        self.gridLayout_2.addWidget(self.label_10, 0, 2, 1, 1)
 
         self.Male_LineEdit = QLineEdit(self.GenderContent_Widget)
         self.Male_LineEdit.setObjectName(u"Male_LineEdit")
         self.Male_LineEdit.setStyleSheet(u"background-color: white")
         self.Male_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Gender_Form.setWidget(0, QFormLayout.FieldRole, self.Male_LineEdit)
-
-        self.Female_Label = QLabel(self.GenderContent_Widget)
-        self.Female_Label.setObjectName(u"Female_Label")
-
-        self.Gender_Form.setWidget(1, QFormLayout.LabelRole, self.Female_Label)
+        self.gridLayout_2.addWidget(self.Male_LineEdit, 0, 1, 1, 1)
 
         self.Female_LineEdit = QLineEdit(self.GenderContent_Widget)
         self.Female_LineEdit.setObjectName(u"Female_LineEdit")
         self.Female_LineEdit.setStyleSheet(u"background-color: white")
         self.Female_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Gender_Form.setWidget(1, QFormLayout.FieldRole, self.Female_LineEdit)
+        self.gridLayout_2.addWidget(self.Female_LineEdit, 1, 1, 1, 1)
 
-        self.Other_Label = QLabel(self.GenderContent_Widget)
-        self.Other_Label.setObjectName(u"Other_Label")
+        self.Male_Label = QLabel(self.GenderContent_Widget)
+        self.Male_Label.setObjectName(u"Male_Label")
 
-        self.Gender_Form.setWidget(2, QFormLayout.LabelRole, self.Other_Label)
+        self.gridLayout_2.addWidget(self.Male_Label, 0, 0, 1, 1)
 
-        self.Other_LineEdit = QLineEdit(self.GenderContent_Widget)
-        self.Other_LineEdit.setObjectName(u"Other_LineEdit")
-        self.Other_LineEdit.setStyleSheet(u"background-color: white")
-        self.Other_LineEdit.setAlignment(Qt.AlignCenter)
+        self.label_11 = QLabel(self.GenderContent_Widget)
+        self.label_11.setObjectName(u"label_11")
 
-        self.Gender_Form.setWidget(2, QFormLayout.FieldRole, self.Other_LineEdit)
+        self.gridLayout_2.addWidget(self.label_11, 1, 2, 1, 1)
 
 
-        self.horizontalLayout_8.addLayout(self.Gender_Form)
+        self.horizontalLayout_8.addLayout(self.gridLayout_2)
 
 
         self.verticalLayout_4.addWidget(self.GenderContent_Widget)
@@ -1126,64 +1119,78 @@ class Ui_MainWindow(object):
         self.horizontalLayout_9.setSpacing(5)
         self.horizontalLayout_9.setObjectName(u"horizontalLayout_9")
         self.horizontalLayout_9.setContentsMargins(1, 1, 1, 1)
-        self.AgePlot_Widget = QWidget(self.widget_11)
-        self.AgePlot_Widget.setObjectName(u"AgePlot_Widget")
-
-        self.horizontalLayout_9.addWidget(self.AgePlot_Widget)
-
-        self.Age_Form = QFormLayout()
-        self.Age_Form.setObjectName(u"Age_Form")
-        self.Age_Form.setFormAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.gridLayout = QGridLayout()
+        self.gridLayout.setObjectName(u"gridLayout")
         self.Age1_Label = QLabel(self.widget_11)
         self.Age1_Label.setObjectName(u"Age1_Label")
 
-        self.Age_Form.setWidget(0, QFormLayout.LabelRole, self.Age1_Label)
-
-        self.Age1_LineEdit = QLineEdit(self.widget_11)
-        self.Age1_LineEdit.setObjectName(u"Age1_LineEdit")
-        self.Age1_LineEdit.setStyleSheet(u"background-color: white")
-        self.Age1_LineEdit.setAlignment(Qt.AlignCenter)
-
-        self.Age_Form.setWidget(0, QFormLayout.FieldRole, self.Age1_LineEdit)
-
-        self.Age2_Label = QLabel(self.widget_11)
-        self.Age2_Label.setObjectName(u"Age2_Label")
-
-        self.Age_Form.setWidget(1, QFormLayout.LabelRole, self.Age2_Label)
-
-        self.Age2_LineEdit = QLineEdit(self.widget_11)
-        self.Age2_LineEdit.setObjectName(u"Age2_LineEdit")
-        self.Age2_LineEdit.setStyleSheet(u"background-color: white")
-        self.Age2_LineEdit.setAlignment(Qt.AlignCenter)
-
-        self.Age_Form.setWidget(1, QFormLayout.FieldRole, self.Age2_LineEdit)
-
-        self.Age3_Label = QLabel(self.widget_11)
-        self.Age3_Label.setObjectName(u"Age3_Label")
-
-        self.Age_Form.setWidget(2, QFormLayout.LabelRole, self.Age3_Label)
-
-        self.Age3_LineEdit = QLineEdit(self.widget_11)
-        self.Age3_LineEdit.setObjectName(u"Age3_LineEdit")
-        self.Age3_LineEdit.setStyleSheet(u"background-color: white")
-        self.Age3_LineEdit.setAlignment(Qt.AlignCenter)
-
-        self.Age_Form.setWidget(2, QFormLayout.FieldRole, self.Age3_LineEdit)
-
-        self.Age4_Label = QLabel(self.widget_11)
-        self.Age4_Label.setObjectName(u"Age4_Label")
-
-        self.Age_Form.setWidget(3, QFormLayout.LabelRole, self.Age4_Label)
+        self.gridLayout.addWidget(self.Age1_Label, 0, 0, 1, 1)
 
         self.Age4_LineEdit = QLineEdit(self.widget_11)
         self.Age4_LineEdit.setObjectName(u"Age4_LineEdit")
         self.Age4_LineEdit.setStyleSheet(u"background-color: white")
         self.Age4_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Age_Form.setWidget(3, QFormLayout.FieldRole, self.Age4_LineEdit)
+        self.gridLayout.addWidget(self.Age4_LineEdit, 3, 1, 1, 1)
+
+        self.Age3_Label = QLabel(self.widget_11)
+        self.Age3_Label.setObjectName(u"Age3_Label")
+
+        self.gridLayout.addWidget(self.Age3_Label, 2, 0, 1, 1)
+
+        self.Age2_LineEdit = QLineEdit(self.widget_11)
+        self.Age2_LineEdit.setObjectName(u"Age2_LineEdit")
+        self.Age2_LineEdit.setStyleSheet(u"background-color: white")
+        self.Age2_LineEdit.setAlignment(Qt.AlignCenter)
+
+        self.gridLayout.addWidget(self.Age2_LineEdit, 1, 1, 1, 1)
+
+        self.Age1_LineEdit = QLineEdit(self.widget_11)
+        self.Age1_LineEdit.setObjectName(u"Age1_LineEdit")
+        self.Age1_LineEdit.setStyleSheet(u"background-color: white")
+        self.Age1_LineEdit.setAlignment(Qt.AlignCenter)
+
+        self.gridLayout.addWidget(self.Age1_LineEdit, 0, 1, 1, 1)
+
+        self.Age4_Label = QLabel(self.widget_11)
+        self.Age4_Label.setObjectName(u"Age4_Label")
+
+        self.gridLayout.addWidget(self.Age4_Label, 3, 0, 1, 1)
+
+        self.Age2_Label = QLabel(self.widget_11)
+        self.Age2_Label.setObjectName(u"Age2_Label")
+
+        self.gridLayout.addWidget(self.Age2_Label, 1, 0, 1, 1)
+
+        self.Age3_LineEdit = QLineEdit(self.widget_11)
+        self.Age3_LineEdit.setObjectName(u"Age3_LineEdit")
+        self.Age3_LineEdit.setStyleSheet(u"background-color: white")
+        self.Age3_LineEdit.setAlignment(Qt.AlignCenter)
+
+        self.gridLayout.addWidget(self.Age3_LineEdit, 2, 1, 1, 1)
+
+        self.label_6 = QLabel(self.widget_11)
+        self.label_6.setObjectName(u"label_6")
+
+        self.gridLayout.addWidget(self.label_6, 0, 2, 1, 1)
+
+        self.label_7 = QLabel(self.widget_11)
+        self.label_7.setObjectName(u"label_7")
+
+        self.gridLayout.addWidget(self.label_7, 1, 2, 1, 1)
+
+        self.label_8 = QLabel(self.widget_11)
+        self.label_8.setObjectName(u"label_8")
+
+        self.gridLayout.addWidget(self.label_8, 2, 2, 1, 1)
+
+        self.label_9 = QLabel(self.widget_11)
+        self.label_9.setObjectName(u"label_9")
+
+        self.gridLayout.addWidget(self.label_9, 3, 2, 1, 1)
 
 
-        self.horizontalLayout_9.addLayout(self.Age_Form)
+        self.horizontalLayout_9.addLayout(self.gridLayout)
 
 
         self.verticalLayout_16.addWidget(self.widget_11)
@@ -1249,57 +1256,64 @@ class Ui_MainWindow(object):
         self.TemperatureContent_.setSpacing(5)
         self.TemperatureContent_.setObjectName(u"TemperatureContent_")
         self.TemperatureContent_.setContentsMargins(1, 1, 1, 1)
-        self.Temperature_Picture = QLabel(self.TemperatureContent_Widget)
-        self.Temperature_Picture.setObjectName(u"Temperature_Picture")
-        self.Temperature_Picture.setPixmap(QPixmap(u":/Profiles/icons/icons8-thermometer-60.png"))
-        self.Temperature_Picture.setScaledContents(False)
-
-        self.TemperatureContent_.addWidget(self.Temperature_Picture)
-
-        self.Temperature_Form = QFormLayout()
-        self.Temperature_Form.setObjectName(u"Temperature_Form")
-        self.Temperature_Form.setFormAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
-        self.Temperature_Form.setVerticalSpacing(5)
+        self.gridLayout_3 = QGridLayout()
+        self.gridLayout_3.setObjectName(u"gridLayout_3")
+        self.gridLayout_3.setVerticalSpacing(5)
         self.TempMonthMax_Label = QLabel(self.TemperatureContent_Widget)
         self.TempMonthMax_Label.setObjectName(u"TempMonthMax_Label")
 
-        self.Temperature_Form.setWidget(0, QFormLayout.LabelRole, self.TempMonthMax_Label)
-
-        self.TempMonthMax_LineEdit = QLineEdit(self.TemperatureContent_Widget)
-        self.TempMonthMax_LineEdit.setObjectName(u"TempMonthMax_LineEdit")
-        self.TempMonthMax_LineEdit.setStyleSheet(u"background-color: white")
-        self.TempMonthMax_LineEdit.setAlignment(Qt.AlignCenter)
-
-        self.Temperature_Form.setWidget(0, QFormLayout.FieldRole, self.TempMonthMax_LineEdit)
+        self.gridLayout_3.addWidget(self.TempMonthMax_Label, 0, 0, 1, 1)
 
         self.TempMonthMean_Label = QLabel(self.TemperatureContent_Widget)
         self.TempMonthMean_Label.setObjectName(u"TempMonthMean_Label")
 
-        self.Temperature_Form.setWidget(1, QFormLayout.LabelRole, self.TempMonthMean_Label)
+        self.gridLayout_3.addWidget(self.TempMonthMean_Label, 1, 0, 1, 1)
 
         self.TempMonthMean_LineEdit = QLineEdit(self.TemperatureContent_Widget)
         self.TempMonthMean_LineEdit.setObjectName(u"TempMonthMean_LineEdit")
         self.TempMonthMean_LineEdit.setStyleSheet(u"background-color: white")
         self.TempMonthMean_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Temperature_Form.setWidget(1, QFormLayout.FieldRole, self.TempMonthMean_LineEdit)
+        self.gridLayout_3.addWidget(self.TempMonthMean_LineEdit, 1, 1, 1, 1)
 
-        self.TempMonthlyMin_Label = QLabel(self.TemperatureContent_Widget)
-        self.TempMonthlyMin_Label.setObjectName(u"TempMonthlyMin_Label")
+        self.TempMonthMax_LineEdit = QLineEdit(self.TemperatureContent_Widget)
+        self.TempMonthMax_LineEdit.setObjectName(u"TempMonthMax_LineEdit")
+        self.TempMonthMax_LineEdit.setStyleSheet(u"background-color: white")
+        self.TempMonthMax_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Temperature_Form.setWidget(2, QFormLayout.LabelRole, self.TempMonthlyMin_Label)
+        self.gridLayout_3.addWidget(self.TempMonthMax_LineEdit, 0, 1, 1, 1)
 
         self.TempMonthlyMin_LineEdit = QLineEdit(self.TemperatureContent_Widget)
         self.TempMonthlyMin_LineEdit.setObjectName(u"TempMonthlyMin_LineEdit")
         self.TempMonthlyMin_LineEdit.setStyleSheet(u"background-color: white")
         self.TempMonthlyMin_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Temperature_Form.setWidget(2, QFormLayout.FieldRole, self.TempMonthlyMin_LineEdit)
+        self.gridLayout_3.addWidget(self.TempMonthlyMin_LineEdit, 2, 1, 1, 1)
+
+        self.TempMonthlyMin_Label = QLabel(self.TemperatureContent_Widget)
+        self.TempMonthlyMin_Label.setObjectName(u"TempMonthlyMin_Label")
+
+        self.gridLayout_3.addWidget(self.TempMonthlyMin_Label, 2, 0, 1, 1)
+
+        self.label_12 = QLabel(self.TemperatureContent_Widget)
+        self.label_12.setObjectName(u"label_12")
+
+        self.gridLayout_3.addWidget(self.label_12, 0, 2, 1, 1)
+
+        self.label_14 = QLabel(self.TemperatureContent_Widget)
+        self.label_14.setObjectName(u"label_14")
+
+        self.gridLayout_3.addWidget(self.label_14, 1, 2, 1, 1)
+
+        self.label_15 = QLabel(self.TemperatureContent_Widget)
+        self.label_15.setObjectName(u"label_15")
+
+        self.gridLayout_3.addWidget(self.label_15, 2, 2, 1, 1)
 
 
-        self.TemperatureContent_.addLayout(self.Temperature_Form)
+        self.TemperatureContent_.addLayout(self.gridLayout_3)
 
-        self.TemperatureContent_.setStretch(1, 1)
+        self.TemperatureContent_.setStretch(0, 1)
 
         self.verticalLayout_36.addWidget(self.TemperatureContent_Widget)
 
@@ -1336,48 +1350,62 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_14.addWidget(self.Rainfall_Picture)
 
-        self.Rainfall_Form = QFormLayout()
-        self.Rainfall_Form.setObjectName(u"Rainfall_Form")
-        self.Rainfall_Form.setFormAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
-        self.Rainfall_Form.setVerticalSpacing(5)
-        self.RainAnnualMean_Label = QLabel(self.RainfallContent_Widget)
-        self.RainAnnualMean_Label.setObjectName(u"RainAnnualMean_Label")
+        self.gridLayout_4 = QGridLayout()
+        self.gridLayout_4.setObjectName(u"gridLayout_4")
+        self.gridLayout_4.setVerticalSpacing(5)
+        self.RainMonthMean_LineEdit = QLineEdit(self.RainfallContent_Widget)
+        self.RainMonthMean_LineEdit.setObjectName(u"RainMonthMean_LineEdit")
+        self.RainMonthMean_LineEdit.setStyleSheet(u"background-color: white")
+        self.RainMonthMean_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Rainfall_Form.setWidget(0, QFormLayout.LabelRole, self.RainAnnualMean_Label)
+        self.gridLayout_4.addWidget(self.RainMonthMean_LineEdit, 2, 1, 1, 1)
+
+        self.RainMonthMax_Label = QLabel(self.RainfallContent_Widget)
+        self.RainMonthMax_Label.setObjectName(u"RainMonthMax_Label")
+
+        self.gridLayout_4.addWidget(self.RainMonthMax_Label, 1, 0, 1, 1)
+
+        self.RainMonthMean_Label = QLabel(self.RainfallContent_Widget)
+        self.RainMonthMean_Label.setObjectName(u"RainMonthMean_Label")
+
+        self.gridLayout_4.addWidget(self.RainMonthMean_Label, 2, 0, 1, 1)
 
         self.RainAnnualMean_LineEdit = QLineEdit(self.RainfallContent_Widget)
         self.RainAnnualMean_LineEdit.setObjectName(u"RainAnnualMean_LineEdit")
         self.RainAnnualMean_LineEdit.setStyleSheet(u"background-color: white")
         self.RainAnnualMean_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Rainfall_Form.setWidget(0, QFormLayout.FieldRole, self.RainAnnualMean_LineEdit)
-
-        self.RainMonthMax_Label = QLabel(self.RainfallContent_Widget)
-        self.RainMonthMax_Label.setObjectName(u"RainMonthMax_Label")
-
-        self.Rainfall_Form.setWidget(1, QFormLayout.LabelRole, self.RainMonthMax_Label)
+        self.gridLayout_4.addWidget(self.RainAnnualMean_LineEdit, 0, 1, 1, 1)
 
         self.RainMonthMax_LineEdit = QLineEdit(self.RainfallContent_Widget)
         self.RainMonthMax_LineEdit.setObjectName(u"RainMonthMax_LineEdit")
         self.RainMonthMax_LineEdit.setStyleSheet(u"background-color: white")
         self.RainMonthMax_LineEdit.setAlignment(Qt.AlignCenter)
 
-        self.Rainfall_Form.setWidget(1, QFormLayout.FieldRole, self.RainMonthMax_LineEdit)
+        self.gridLayout_4.addWidget(self.RainMonthMax_LineEdit, 1, 1, 1, 1)
 
-        self.RainMonthMean_Label = QLabel(self.RainfallContent_Widget)
-        self.RainMonthMean_Label.setObjectName(u"RainMonthMean_Label")
+        self.RainAnnualMean_Label = QLabel(self.RainfallContent_Widget)
+        self.RainAnnualMean_Label.setObjectName(u"RainAnnualMean_Label")
 
-        self.Rainfall_Form.setWidget(2, QFormLayout.LabelRole, self.RainMonthMean_Label)
+        self.gridLayout_4.addWidget(self.RainAnnualMean_Label, 0, 0, 1, 1)
 
-        self.RainMonthMean_LineEdit = QLineEdit(self.RainfallContent_Widget)
-        self.RainMonthMean_LineEdit.setObjectName(u"RainMonthMean_LineEdit")
-        self.RainMonthMean_LineEdit.setStyleSheet(u"background-color: white")
-        self.RainMonthMean_LineEdit.setAlignment(Qt.AlignCenter)
+        self.label_16 = QLabel(self.RainfallContent_Widget)
+        self.label_16.setObjectName(u"label_16")
 
-        self.Rainfall_Form.setWidget(2, QFormLayout.FieldRole, self.RainMonthMean_LineEdit)
+        self.gridLayout_4.addWidget(self.label_16, 0, 2, 1, 1)
+
+        self.label_17 = QLabel(self.RainfallContent_Widget)
+        self.label_17.setObjectName(u"label_17")
+
+        self.gridLayout_4.addWidget(self.label_17, 1, 2, 1, 1)
+
+        self.label_18 = QLabel(self.RainfallContent_Widget)
+        self.label_18.setObjectName(u"label_18")
+
+        self.gridLayout_4.addWidget(self.label_18, 2, 2, 1, 1)
 
 
-        self.horizontalLayout_14.addLayout(self.Rainfall_Form)
+        self.horizontalLayout_14.addLayout(self.gridLayout_4)
 
 
         self.verticalLayout_37.addWidget(self.RainfallContent_Widget)
@@ -2418,7 +2446,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 1284, 22))
+        self.menubar.setGeometry(QRect(0, 0, 1280, 22))
         self.menuFile_F = QMenu(self.menubar)
         self.menuFile_F.setObjectName(u"menuFile_F")
         self.menuHelp = QMenu(self.menubar)
@@ -2454,7 +2482,7 @@ class Ui_MainWindow(object):
 
         self.menu_btn_2.setDefault(False)
         self.home_btn_2.setDefault(False)
-        self.BodyWidget.setCurrentIndex(5)
+        self.BodyWidget.setCurrentIndex(1)
         self.Manager_TabWidget.setCurrentIndex(0)
         self.Functional_MainWidget.setCurrentIndex(0)
         self.Performance_MainWidget.setCurrentIndex(1)
@@ -2518,25 +2546,35 @@ class Ui_MainWindow(object):
         self.Study_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Study</p></body></html>", None))
         self.Population_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">POPULATION</span></p></body></html>", None))
         self.Gender_Label.setText(QCoreApplication.translate("MainWindow", u"Gender distribution", None))
-        self.Male_Label.setText(QCoreApplication.translate("MainWindow", u"Male", None))
         self.Female_Label.setText(QCoreApplication.translate("MainWindow", u"Female", None))
-        self.Other_Label.setText(QCoreApplication.translate("MainWindow", u"Other", None))
+        self.label_10.setText(QCoreApplication.translate("MainWindow", u"%", None))
+        self.Male_Label.setText(QCoreApplication.translate("MainWindow", u"Male", None))
+        self.label_11.setText(QCoreApplication.translate("MainWindow", u"%", None))
         self.Age_Label.setText(QCoreApplication.translate("MainWindow", u"Age distribution", None))
         self.Age1_Label.setText(QCoreApplication.translate("MainWindow", u"0 - 14", None))
-        self.Age2_Label.setText(QCoreApplication.translate("MainWindow", u"15 - 24", None))
         self.Age3_Label.setText(QCoreApplication.translate("MainWindow", u"25 - 64", None))
         self.Age4_Label.setText(QCoreApplication.translate("MainWindow", u"+ 65", None))
+        self.Age2_Label.setText(QCoreApplication.translate("MainWindow", u"15 - 24", None))
+        self.label_6.setText(QCoreApplication.translate("MainWindow", u"%", None))
+        self.label_7.setText(QCoreApplication.translate("MainWindow", u"%", None))
+        self.label_8.setText(QCoreApplication.translate("MainWindow", u"%", None))
+        self.label_9.setText(QCoreApplication.translate("MainWindow", u"%", None))
         self.Climate_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">CLIMATE AND WEATHER</span></p></body></html>", None))
         self.Temperature_Label.setText(QCoreApplication.translate("MainWindow", u"Temperature", None))
-        self.Temperature_Picture.setText("")
         self.TempMonthMax_Label.setText(QCoreApplication.translate("MainWindow", u"Monthly max.", None))
         self.TempMonthMean_Label.setText(QCoreApplication.translate("MainWindow", u"Monthly mean", None))
         self.TempMonthlyMin_Label.setText(QCoreApplication.translate("MainWindow", u"Monthly min.", None))
+        self.label_12.setText(QCoreApplication.translate("MainWindow", u"\u00baC", None))
+        self.label_14.setText(QCoreApplication.translate("MainWindow", u"\u00baC", None))
+        self.label_15.setText(QCoreApplication.translate("MainWindow", u"\u00baC", None))
         self.Rainfall_Label.setText(QCoreApplication.translate("MainWindow", u"Rainfall", None))
         self.Rainfall_Picture.setText("")
-        self.RainAnnualMean_Label.setText(QCoreApplication.translate("MainWindow", u"Annual mean", None))
         self.RainMonthMax_Label.setText(QCoreApplication.translate("MainWindow", u"Monthly max.", None))
         self.RainMonthMean_Label.setText(QCoreApplication.translate("MainWindow", u"Monthly mean", None))
+        self.RainAnnualMean_Label.setText(QCoreApplication.translate("MainWindow", u"Annual mean", None))
+        self.label_16.setText(QCoreApplication.translate("MainWindow", u"mm", None))
+        self.label_17.setText(QCoreApplication.translate("MainWindow", u"mm", None))
+        self.label_18.setText(QCoreApplication.translate("MainWindow", u"mm", None))
         self.NBS_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">NATURE-BASED SOLUTIONS</span></p></body></html>", None))
         self.NBS_Label_2.setText(QCoreApplication.translate("MainWindow", u"Existing NBS", None))
         ___qtablewidgetitem = self.NBS_Table.horizontalHeaderItem(0)
@@ -2595,8 +2633,8 @@ class Ui_MainWindow(object):
 "li.checked::marker { content: \"\\2612\"; }\n"
 "</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt; font-weight:700;\">RESILIENCE RATING</span></p></body></html>", None))
-        self.OFR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">STRATEGIC DIMENSION</span></p></body></html>", None))
-        self.OPR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">PERFORANCE DIMENSION</span></p></body></html>", None))
+        self.OFR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">FUNCTIONAL RATING</span></p></body></html>", None))
+        self.OPR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">PERFORMANCE RATING</span></p></body></html>", None))
         self.ORR_Label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p align=\"center\"><span style=\" font-weight:700;\">URBAN STORMWATER RESILIENCE INDEX</span></p></body></html>", None))
         self.Overall_Label_3.setText(QCoreApplication.translate("MainWindow", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"
