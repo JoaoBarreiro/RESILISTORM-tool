@@ -5,6 +5,8 @@ import shutil
 import atexit
 import pandas as pd
 
+"ISTO É UM TESTE!"
+
 from PySide6.QtWidgets import (QMainWindow, QApplication, QTreeWidget, QTreeWidgetItem,
                             QVBoxLayout, QButtonGroup, QRadioButton, QWidget,
                             QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem,
