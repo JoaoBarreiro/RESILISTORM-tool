@@ -377,7 +377,7 @@ def fillIndicatorsSetup(REFUSS_Database: QSqlDatabase, Target_Database: QSqlData
         Target_Database.commit()
     else:
         print("Both databases must be open before running this function")    
-
+    
 
 """def setConsequencesTables(REFUSS_Database: QSqlDatabase, Answers_Database: QSqlDatabase, Situation: M_AnalysisManager.Situation):
   
@@ -699,3 +699,26 @@ def getUniqueColumnValues(Database: QSqlDatabase, TableName: str, ColumnName: st
             unique_values.append(value) if value not in unique_values else None
         return unique_values
     return False
+
+def getRowNames(Database: QSqlDatabase, TableName: str):
+    """
+    Retrieves the names of all rows in a database table.
+
+    Parameters:
+    - Database (QSqlDatabase): The database connection to use for the query.
+    - TableName (str): The name of the table to retrieve row names from.
+
+    Returns:
+    - row_names (list): A list of row names in the specified table.
+    - bool: False if the query execution fails.
+    """
+
+    query = QSqlQuery(Database)
+    query.prepare(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{TableName}'")
+
+    if query.exec():
+        row_names = []
+        while query.next():
+            row_name = query.value(0)
+            row_names.append(row_name)
+        return row_names
