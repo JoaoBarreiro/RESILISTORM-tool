@@ -1,3 +1,4 @@
+from re import M
 import sys
 import os
 import shutil
@@ -6,14 +7,14 @@ import pandas as pd
 
 from PySide6.QtWidgets import (QMainWindow, QApplication, QTreeWidget, QTreeWidgetItem,
                             QVBoxLayout, QButtonGroup, QRadioButton, QWidget,
-                            QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit,
+                            QCheckBox, QLabel, QTextEdit, QStackedWidget, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem,
                             QScrollArea, QSizePolicy, QSpacerItem,  QTableView, 
                              QDialog, QStyledItemDelegate, QHeaderView,  QAbstractItemView,
-                            QAbstractScrollArea,   QFrame 
+                            QAbstractScrollArea,   QFrame, QMenu
                             )
 from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QCoreApplication
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
-from PySide6.QtGui import QValidator
+from PySide6.QtGui import QValidator, QAction
 
 from GUI_Python.W_MainPage_V7 import Ui_MainWindow
 
@@ -222,6 +223,7 @@ class PerformanceSqlTableModel(QSqlTableModel):
             flags &= ~Qt.ItemIsEditable
         return flags
 
+
 class MainWindow(QMainWindow):
     
     updateWeights = Signal()
@@ -242,9 +244,53 @@ class MainWindow(QMainWindow):
         self.set_analysis_manager()
         self.set_performance_rainfall_combobox()
         self.set_dashboard_functionalcriteria_combobox()
+        self.set_study_profile()
         
         self.initialize_performance_variables()
-     
+        
+
+    """ ABOUT PROFILE TABLES"""
+    def show_context_menu(self, table, position):
+        """Display the right-click context menu with Add/Remove row options."""
+        menu = QMenu()
+
+        add_row_action = QAction("Add Row", self)
+        remove_row_action = QAction("Remove Row", self)
+
+        menu.addAction(add_row_action)
+        menu.addAction(remove_row_action)
+
+        add_row_action.triggered.connect(lambda: self.add_row(table))
+        remove_row_action.triggered.connect(lambda: self.remove_row(table))
+
+        menu.exec(table.viewport().mapToGlobal(position))
+
+    def add_row(self, table):
+        """Add an empty row to the given QTableWidget and update the database."""
+        row_position = table.rowCount()
+        table.insertRow(row_position)
+        for col in range(table.columnCount()):
+            table.setItem(row_position, col, QTableWidgetItem(""))  # Insert an empty QTableWidgetItem
+
+        # After adding a row, update the database
+        if table == self.ui.NBS_Table:
+            self.save_table_data(self.ui.NBS_Table, 'NBS')
+        elif table == self.ui.SpecialEq_Table:
+            self.save_table_data(self.ui.SpecialEq_Table, 'SpecialEq')
+
+    def remove_row(self, table):
+        """Remove the currently selected row from the given QTableWidget and update the database."""
+        current_row = table.currentRow()
+        if current_row >= 0:
+            table.removeRow(current_row)
+
+        # After removing a row, update the database
+        if table == self.ui.NBS_Table:
+            self.save_table_data(self.ui.NBS_Table, 'NBS')
+        elif table == self.ui.SpecialEq_Table:
+            self.save_table_data(self.ui.SpecialEq_Table, 'SpecialEq')
+    
+    """ CONTINUES"""
     def set_inital_view(self):  
         # Set initial view of the window
         self.ui.LeftMenuFrame.setHidden(True)
@@ -396,7 +442,187 @@ class MainWindow(QMainWindow):
         M_Operate_GUI_Elements.updateQComboBox(self.ui.FCR_ComboBox, ObjectivesID_List)
         
         #Update Functional Criteria Rating plot when FCR_ComboBox changes
-        self.ui.FCR_ComboBox.currentTextChanged.connect(self.updateFCR)        
+        self.ui.FCR_ComboBox.currentTextChanged.connect(self.updateFCR)               
+
+    def set_study_profile(self):
+        
+        # Enable context menus for profiletables
+        self.ui.NBS_Table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ui.SpecialEq_Table.setContextMenuPolicy(Qt.CustomContextMenu)
+
+        # Connect context menu signals for tables
+        self.ui.NBS_Table.customContextMenuRequested.connect(lambda pos: self.show_context_menu(self.ui.NBS_Table, pos))
+        self.ui.SpecialEq_Table.customContextMenuRequested.connect(lambda pos: self.show_context_menu(self.ui.SpecialEq_Table, pos))
+        
+        # Load data from the database
+        self.load_table_data('NBS', self.ui.NBS_Table)
+        self.load_table_data('SpecialEq', self.ui.SpecialEq_Table)
+        
+        
+        study_profile_data = M_OperateDatabases.fetch_table_from_database(STUDY_DB, 'Profile')
+        
+        self.profile_widget_mapping = {
+            'StudyName' : self.ui.StudyName_LineEdit,
+            'Country'   : self.ui.Country_LineEdit,
+            'City'      : self.ui.City_LineEdit,
+            'CatName'   : self.ui.CatName_LineEdit,
+            'CatArea'   : self.ui.CatArea_LineEdit,
+            'CatImp'    : self.ui.CatImp_LineEdit,
+            'CatSlope'  : self.ui.CatSlope_LineEdit,
+            'Male'      : self.ui.Male_LineEdit,
+            'Female'    : self.ui.Female_LineEdit,
+            'Age1'      : self.ui.Age1_LineEdit,
+            'Age2'      : self.ui.Age2_LineEdit,
+            'Age3'      : self.ui.Age3_LineEdit,
+            'Age4'      : self.ui.Age4_LineEdit,
+            'TempMonthMax' : self.ui.TempMonthMax_LineEdit,
+            'TempMonthMean': self.ui.TempMonthMean_LineEdit,
+            'TempMonthlyMin' : self.ui.TempMonthlyMin_LineEdit,
+            'RainAnnualMean' : self.ui.RainAnnualMean_LineEdit,
+            'RainMonthMax' : self.ui.RainMonthMax_LineEdit,
+            'RainMonthMean' : self.ui.RainMonthMean_LineEdit,
+            'NBS' : self.ui.NBS_Table,
+            'UtilityName'   : self.ui.UtilityName_LineEdit,
+            'UtilityType'   : self.ui.UtilityType_ComboBox,
+            'Type'          : self.ui.Type_ComboBox,
+            'SepLenght'     : self.ui.SepLenght_LineEdit,
+            'CombLenght'    : self.ui.CombLenght_LineEdit,
+            'Diameter'      : self.ui.Diameter_LineEdit,
+            'Age'           : self.ui.Age_LineEdit,
+            'Outfalls'      : self.ui.Outfalls_LineEdit,
+            'Receiver'      : self.ui.Receiver_Widget,
+            'SpecialEq'     : self.ui.SpecialEq_Table
+        }
+      
+        self.populate_profile_widgets(study_profile_data)
+
+        # Dynamically connect signals for automatic updating
+        self.connect_signals_for_widgets()        
+
+      
+    def populate_profile_widgets(self, study_profile_data):
+        """Populate the widgets with values from the database."""
+        for index, row in study_profile_data.iterrows():
+            item = row['Item']      # "Item" column holds the widget identifiers
+            content = row['Content']  # "Content" column holds the values
+
+            # Find the widget associated with this item
+            widget = self.profile_widget_mapping.get(item)
+
+            if widget:
+                # Handle QLineEdit
+                if isinstance(widget, QLineEdit):
+                    widget.setText(content)
+
+                # Handle QComboBox
+                elif isinstance(widget, QComboBox):
+                    index = widget.findText(content)
+                    if index >= 0:
+                        widget.setCurrentIndex(index)
+
+                # Handle tables (QTableWidget or QTableView)
+                elif isinstance(widget, QTableWidget):
+                    self.populate_table_widget(widget, content)
+                elif item == 'Receiver' and isinstance(widget, QWidget):
+                    checkbox_states = content.split(',')
+                    self.ui.Receiver_Sea.setChecked(checkbox_states[0] == '1')
+                    self.ui.Receiver_Estuary.setChecked(checkbox_states[1] == '1')
+                    self.ui.Receiver_River.setChecked(checkbox_states[2] == '1')
+                    self.ui.Receiver_Other.setChecked(checkbox_states[3] == '1')
+
+    def load_table_data(self, table_widget, table_name):
+        """Load the table data from the database and populate the QTableWidget."""
+        # Fetch the data from the database (it should return a string like 'val1,val2;val3,val4')
+        content = M_OperateDatabases.fetch_table_from_database(STUDY_DB, table_name)
+        if not content.empty:  # Ensure content exists
+            rows = content.split(";")  # Split rows by semicolon
+            for row_data in rows:
+                columns = row_data.split(",")  # Split columns by comma
+                row_position = table_widget.rowCount()
+                table_widget.insertRow(row_position)
+                for col_index, value in enumerate(columns):
+                    table_widget.setItem(row_position, col_index, QTableWidgetItem(value))
+
+    def populate_table_widget(self, table, content):
+        """Populate a QTableWidget with data from the database."""
+        rows = content.split(";")
+        table.setRowCount(0)  # Clear existing rows
+        for row_data in rows:
+            columns = row_data.split(",")
+            row_position = table.rowCount()
+            table.insertRow(row_position)
+            for col_index, value in enumerate(columns):
+                table.setItem(row_position, col_index, QTableWidgetItem(value))
+
+    def save_table_data(self, table, item):
+        """Save the table data into the database."""
+        row_count = table.rowCount()
+        col_count = table.columnCount()
+
+        rows = []
+        for row in range(row_count):
+            columns = []
+            for col in range(col_count):
+                cell_item = table.item(row, col)
+                value = cell_item.text() if cell_item else ""
+                columns.append(value)
+            rows.append(",".join(columns))  # Join columns with commas
+
+        # Combine rows into a single string separated by semicolons
+        content = ";".join(rows)
+
+        # Save the formatted content to the database
+        self.update_db(item, content)
+
+    def table_content_changed(self, table_widget, item_name):
+        """Triggered when a QTableWidget cell content is changed, updates the database."""
+        self.save_table_data(table_widget, item_name)
+
+    def update_receiver_status(self):
+        """Collect the states of the Receiver checkboxes and update the database."""
+        checkbox_states = [
+            '1' if self.ui.Receiver_Sea.isChecked() else '0',
+            '1' if self.ui.Receiver_Estuary.isChecked() else '0',
+            '1' if self.ui.Receiver_River.isChecked() else '0',
+            '1' if self.ui.Receiver_Other.isChecked() else '0'
+        ]
+        # Combine the states into a single string
+        combined_states = ','.join(checkbox_states)
+        
+        # Update the database with the combined state string
+        self.update_db('Receiver', combined_states)
+
+    def connect_signals_for_widgets(self):
+        """Dynamically connect signals for all widgets in the mapping."""
+        for item, widget in self.profile_widget_mapping.items():
+            if isinstance(widget, QLineEdit):
+                # Connect QLineEdit's textChanged signal
+                widget.textChanged.connect(lambda text, item=item: self.update_db(item, text))
+            elif isinstance(widget, QComboBox):
+                # Connect QComboBox's currentTextChanged signal
+                widget.currentTextChanged.connect(lambda text, item=item: self.update_db(item, text))
+            elif isinstance(widget, QTableWidget):
+                # Connect QTableWidget's itemChanged signal to update the database when the cell changes
+                widget.itemChanged.connect(lambda: self.table_content_changed(widget, item))
+            elif item == 'Receiver' and isinstance(widget, QWidget):
+                # Connect all checkboxes in Receiver_Widget
+                self.ui.Receiver_Sea.stateChanged.connect(lambda: self.update_receiver_status())
+                self.ui.Receiver_Estuary.stateChanged.connect(lambda: self.update_receiver_status())
+                self.ui.Receiver_River.stateChanged.connect(lambda: self.update_receiver_status())
+                self.ui.Receiver_Other.stateChanged.connect(lambda: self.update_receiver_status()) 
+
+    def update_db(self, item, content):
+        """Update the database when a widget's value is changed."""
+        query = QSqlQuery(STUDY_DB)
+
+        # Prepare and execute an update query
+        query.prepare("UPDATE Profile SET Content = ? WHERE Item = ?")
+        query.addBindValue(content)
+        query.addBindValue(item)
+        query.exec()
+        #commit changes
+        STUDY_DB.commit()
+
 
     def weight_setup_verifier(self):
 
