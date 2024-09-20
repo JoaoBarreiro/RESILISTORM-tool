@@ -2,7 +2,6 @@ import pandas as pd
 import os
 
 from M_SituationManager import SituationGenerator
-from M_OperateDatabases import fetch_table_from_database
 
 class SITUATION():
     def __init__(self, Study_path: str):

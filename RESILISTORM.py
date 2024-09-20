@@ -916,22 +916,21 @@ class MainWindow(QMainWindow):
             for situation_id, situation in self.STUDY.Situations.items():
                 if situation.name == selected_situation_name:
                     self.selected_situation_id = situation_id
-                    # self.STUDY.Selected_situation = situation
-            # Establish the connection with ANSWRS_DB
-            M_OperateDatabases.establishDatabaseConnections([(ANSWERS_DB, self.STUDY.Situations[self.selected_situation_id].db_path)])
-            state = True
+            situation_state = True
             
         else:
             # Close the connection with current ANSWRS_DB
             if ANSWERS_DB.isOpen():
                 ANSWERS_DB.close()
             self.selected_situation_id = -1
-            self.STUDY.Situations[self.selected_situation_id] = SITUATION(self.STUDY.Study_path)
-            state = False
-        
+            self.STUDY.Situations[self.selected_situation_id] = SITUATION(self.STUDY.Study_path)  #Set an empty situation
+            situation_state = False
+    
+        # Establish the connection with ANSWRS_DB, even if Situation is empty/none
+        M_OperateDatabases.establishDatabaseConnections([(ANSWERS_DB, self.STUDY.Situations[self.selected_situation_id].db_path)])        
         print(f"Selected situation is {self.STUDY.Situations[self.selected_situation_id].name}")
         
-        self.update_FunctionalAnswers(state)
+        self.update_FunctionalAnswers(situation_state)
         self.update_rainfall_combobox()
         self.populate_Performance_pages()
         
