@@ -3,6 +3,7 @@ import sys
 import os
 import shutil
 import atexit
+from numpy import empty
 import pandas as pd
 
 from PySide6.QtWidgets import (QMainWindow, QApplication, QTreeWidget, QTreeWidgetItem,
@@ -523,7 +524,7 @@ class MainWindow(QMainWindow):
                 # Handle tables (QTableWidget or QTableView)
                 elif isinstance(widget, QTableWidget):
                     self.populate_table_widget(widget, content)
-                elif item == 'Receiver' and isinstance(widget, QWidget):
+                elif item == 'Receiver' and isinstance(widget, QWidget) and content != '':
                     checkbox_states = content.split(',')
                     self.ui.Receiver_Sea.setChecked(checkbox_states[0] == '1')
                     self.ui.Receiver_Estuary.setChecked(checkbox_states[1] == '1')
